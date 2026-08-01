@@ -1,5 +1,25 @@
 # ZeroDOM Progress
 
+## 2026-08-01 11:50 IST
+
+Built the Playwright checkout executor boundary. Added `PlaywrightCheckoutExecutor`, selector-driven checkout form filling, merchant/amount extraction, issuer authorization, and redacted telemetry that includes `last4` but never full card number or CVC. Added a deterministic in-memory browser harness via `npm run checkout-harness` and `zerodome checkout-harness`.
+
+Added `docs/PLAYWRIGHT_CHECKOUT.md` to document the adapter contract for a future real checkout target.
+
+Verified:
+- `npm run typecheck`
+- `npm test` (24 tests)
+- `npm run checkout-harness` (required browser permissions in this sandbox)
+- `node bin/zerodome.js checkout-harness` (required browser permissions in this sandbox)
+- `node bin/zerodome.js stripe-smoke` fails closed without sandbox env vars
+- `ZERODOME_PORT=4040 npm run test-server`
+- `ZERODOME_PORT=4041 npm run demo:headless`
+
+Still open:
+- Real checkout target site remains blocked on human selection per `docs/AGENTS.md`.
+- Real Stripe sandbox smoke still needs sandbox credentials/cardholder.
+- The live 100% readiness checks cannot be claimed until the selected site and Stripe sandbox environment are available.
+
 ## 2026-08-01 11:44 IST
 
 Built the Stripe Issuing sandbox adapter boundary. Added a test-mode-only HTTP client that creates scoped virtual cards with spending/lifecycle controls, retrieves expanded sandbox card details, simulates Stripe Issuing test-helper authorizations, and deactivates sandbox cards for cleanup. Added `npm run stripe-sandbox-smoke` and `zerodome stripe-smoke`, both guarded by `STRIPE_SECRET_KEY=sk_test_...` and `STRIPE_ISSUING_CARDHOLDER_ID`.

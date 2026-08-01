@@ -27,6 +27,10 @@ Do not declare the project done until every condition in the spec's "Definition 
 - Never mint a card from a `TaskScope` that's missing an amount cap, an expiry, or a merchant lock — this must fail closed in code, not just in a test.
 - Never mark a test as skipped or expected-to-fail to get past a blocker — surface the blocker in `PROGRESS.md` instead and keep working on something else.
 
+## UI design rule
+
+The dashboard/CLI UI must be black, white, and gray only — no other colors anywhere, including accent colors, status colors, or brand colors. Use borders, weight, spacing, and icons to communicate structure and state (approved/declined/expired), not color. If a UI library's defaults include colored buttons, links, or badges, override them to grayscale rather than leaving the default. This applies to every screen, not just the main dashboard view.
+
 ## When you're stuck
 If a task requires something you can't do (creating a real Stripe account, choosing between two reasonable architectures with no clear spec guidance, a site that blocks Playwright entirely), stop and write the specific blocker to `PROGRESS.md` with what you tried, rather than guessing silently and continuing.
 

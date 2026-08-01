@@ -34,6 +34,7 @@ npm install
 npm test
 npm run typecheck
 npm run card-demo
+npm run checkout-harness
 npm run test-server
 npm run self-test
 npm run demo
@@ -122,10 +123,19 @@ The core currently includes:
 - Stripe Issuing sandbox HTTP adapter with mocked tests for card creation,
   expanded card-detail retrieval, test-helper authorizations, and deactivation
 - scripted executor used to test hostile checkout behavior
+- Playwright checkout executor and deterministic in-memory checkout harness
 
 The real checkout target site is intentionally not hardcoded. Per
 `docs/AGENTS.md`, the target site must be chosen explicitly because browser
 automation and bot-detection risk depend on that choice.
+
+Deterministic Playwright checkout harness:
+
+```bash
+npm run checkout-harness
+```
+
+See [docs/PLAYWRIGHT_CHECKOUT.md](docs/PLAYWRIGHT_CHECKOUT.md).
 
 Optional real Stripe sandbox smoke:
 

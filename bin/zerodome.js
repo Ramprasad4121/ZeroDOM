@@ -16,6 +16,7 @@ Usage:
   zerodome self-test        Alias for the server security preflight
   zerodome test-server      Run the named server security preflight
   zerodome card-demo        Run scoped virtual-card sandbox flow
+  zerodome checkout-harness Run deterministic Playwright checkout harness
   zerodome stripe-smoke     Run Stripe Issuing sandbox smoke flow
 
 Environment:
@@ -35,6 +36,12 @@ if (command === "self-test") {
   await import("../scripts/test-server.js");
 } else if (command === "card-demo") {
   const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/card-sandbox-demo.ts")], {
+    stdio: "inherit",
+    env: process.env
+  });
+  process.exit(result.status ?? 1);
+} else if (command === "checkout-harness") {
+  const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/playwright-checkout-harness.ts")], {
     stdio: "inherit",
     env: process.env
   });

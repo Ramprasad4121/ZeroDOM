@@ -1,7 +1,9 @@
+import Stripe from "stripe";
 import { InMemoryAuditLog, type AuditLog, statusFromOutcome } from "./audit-log.js";
 import { verifyTransactionAttempt } from "./constraint-verifier.js";
 import type { CardRecord, IssuedCard, SandboxCardDetails, TaskScope, TransactionAttempt, TransactionRequest } from "./models.js";
 import { validateTaskScope } from "./scope.js";
+import { assertStripeSandboxKey } from "./stripe-issuing.js";
 
 export class CardIssueError extends Error {
   constructor(message: string) {
@@ -222,3 +224,74 @@ function luhnCheckDigit(value: string) {
     }, 0);
   return String((10 - (sum % 10)) % 10);
 }
+
+export async function mintCard(scope: TaskScope): Promise<IssuedCard> {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "sk_test_mock_secret_key";
+  assertStripeSandboxKey(stripeSecretKey);
+
+  // If mock key or missing Connect account details, fallback to sandbox issuer
+  if (stripeSecretKey === "sk_test_mock_secret_key" || !process.env.STRIPE_CONNECT_ACCOUNT_ID) {
+    const sandboxIssuer = new SandboxCardIssuerClient();
+    return sandboxIssuer.mintCard(scope);
+  }
+
+  // Initialize Stripe client
+  const stripe = new Stripe(stripeSecretKey, {
+    apiVersion: "2022-11-15" as any
+  });
+
+  const cardholderId = process.env.STRIPE_ISSUING_CARDHOLDER_ID || "ich_mock_cardholder";
+
+  // Map TaskScope to Stripe spending limits
+  const params: Stripe.Issuing.CardCreateParams = {
+    cardholder: cardholderId,
+    currency: scope.currency,
+    type: "virtual",
+    status: "active",
+    metadata: {
+      zerodom_task_id: scope.task_id,
+      zerodom_caller_id: scope.caller_id,
+      zerodom_expires_at: scope.expires_at
+    },
+    spending_controls: {
+      spending_limits: [
+        {
+          amount: scope.max_amount,
+          interval: "per_authorization"
+        }
+      ]
+    }
+  };
+
+  if (scope.merchant_lock.type === "merchant_category") {
+    params.spending_controls!.allowed_categories = [scope.merchant_lock.value as any];
+    params.spending_controls!.spending_limits![0].categories = [scope.merchant_lock.value as any];
+  }
+
+  const card = await stripe.issuing.cards.create(params, {
+    stripeAccount: process.env.STRIPE_CONNECT_ACCOUNT_ID
+  });
+
+  const last4 = card.last4 || "4242";
+  const mockNumber = `424242424242${last4}`;
+
+  return {
+    record: {
+      account_id: scope.account_id,
+      card_id: `card_${card.id}`,
+      task_id: scope.task_id,
+      issuer_card_ref: card.id,
+      status: "active",
+      minted_at: new Date(card.created * 1000).toISOString()
+    },
+    scope,
+    card_details: {
+      number: mockNumber,
+      cvc: "123",
+      exp_month: card.exp_month,
+      exp_year: card.exp_year,
+      last4
+    }
+  };
+}
+

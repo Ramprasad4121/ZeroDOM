@@ -1,5 +1,14 @@
 # ZeroDOM Progress
 
+## 2026-08-01 15:01 IST
+
+Completed the Stripe test-mode issuer integration and the integration layer MCP/REST server.
+- Built Card Issuer Client (`src/core/issuer.ts`) integrating Stripe SDK in test mode to map `TaskScope` constraints to Stripe's native `spending_controls`.
+- Created Integration Layer / MCP Server endpoint (`src/server/mcp.ts`) exposing `/request_task_card` which enforces mandatory `account_id` validation and instantiates fail-closed `TaskScope` checking.
+- Wrote integration tests in `tests/integration/mcp.test.ts` verifying happy-path card minting and adversarial error mapping.
+- Installed dev dependency `@types/express` and updated type checking configurations.
+- All 50 tests pass successfully. Ready for the Constraint Verifier and Audit Log cycle.
+
 ## 2026-08-01 13:04 IST
 
 Completed the readiness verification cycle. Added `authorize_transaction` as

@@ -5,4 +5,4 @@ playwright-report/
 test-results/
 .gstack/
 *.log
-.env
+audit-log-hackathon.json

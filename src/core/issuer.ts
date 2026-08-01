@@ -211,6 +211,8 @@ function makeSandboxCardDetails(sequence: number, now: Date): SandboxCardDetails
   };
 }
 
+export const sandboxIssuer = new SandboxCardIssuerClient();
+
 function luhnCheckDigit(value: string) {
   const sum = [...value, "0"]
     .reverse()
@@ -231,7 +233,6 @@ export async function mintCard(scope: TaskScope): Promise<IssuedCard> {
 
   // If mock key or missing Connect account details, fallback to sandbox issuer
   if (stripeSecretKey === "sk_test_mock_secret_key" || !process.env.STRIPE_CONNECT_ACCOUNT_ID) {
-    const sandboxIssuer = new SandboxCardIssuerClient();
     return sandboxIssuer.mintCard(scope);
   }
 

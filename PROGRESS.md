@@ -1,5 +1,13 @@
 # ZeroDOM Progress
 
+## 2026-08-01 15:16 IST
+
+Completed the Live Demo & Adversarial End-to-End Tests.
+- Built a Test Merchant Page (`GET /checkout`) and charge network endpoint (`POST /charge`) inside `src/server/mcp.ts` simulating standard credit card entry forms and integrating directly with our defense-in-depth Constraint Verifier and Audit Logger.
+- Created the Playwright Example Client (`examples/live-demo.ts`) implementing Scenario 1 (Good Agent purchasing $25 book successfully) and Scenario 2 (Hallucinating Agent overspending $500 instead of $5, blocked gracefully by the verifier with `declined_amount`).
+- Registered `npm run live-demo` and the subcommand `zerodome live-demo` in the CLI wrapper.
+- All core loop phases are 100% complete and fully verified. The project is ready for hackathon judging.
+
 ## 2026-08-01 15:11 IST
 
 Completed the CLI Dashboard implementation.

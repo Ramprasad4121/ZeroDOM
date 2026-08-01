@@ -26,6 +26,7 @@ Usage:
   zerodome agent-demo       Run autonomous Playwright checkout demo
   zerodome order-shoes-inr  Run autonomous INR shoes checkout demo
   zerodome cli-dashboard    Run live terminal audit log dashboard
+  zerodome live-demo        Run E2E Playwright hackathon demo (Good vs Hallucinating Agent)
 
 Environment:
   ZERODOME_PORT=4020        Local server port for demo/start
@@ -109,6 +110,12 @@ if (command === "self-test") {
   process.exit(result.status ?? 1);
 } else if (command === "cli-dashboard") {
   const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/cli-dashboard.ts")], {
+    stdio: "inherit",
+    env: process.env
+  });
+  process.exit(result.status ?? 1);
+} else if (command === "live-demo") {
+  const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "examples/live-demo.ts")], {
     stdio: "inherit",
     env: process.env
   });

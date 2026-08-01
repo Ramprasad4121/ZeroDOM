@@ -6,6 +6,67 @@ ZeroDOM is agent-agnostic and multi-tenant: any agent framework (such as Claude,
 
 ---
 
+## 🤖 AI Agent Quick Start & Adoption Guide
+
+> [!IMPORTANT]
+> **AI Coding Agent Instructions (Claude, Cursor, Windsurf, Codex, etc.)**
+> If you are an AI coding assistant tasked with building, running, testing, or adopting ZeroDOM inside a parent codebase, follow this single-prompt recipe sequentially:
+
+### 1. Build and Compile the Project
+ZeroDOM uses TypeScript. Transpile the codebase to native production-ready JavaScript outputs:
+```bash
+npm run build
+```
+*(Compiled artifacts will be output to the git-ignored `dist/` directory).*
+
+### 2. Verify System Integrity
+Verify typechecks and execute the comprehensive Vitest test suite (all 55 tests must pass):
+```bash
+npm run typecheck && npm test
+```
+
+### 3. Run the Live Demo Page & E2E Checkout
+Launch the Playwright automated browser demo to test Scenario 1 (Good Agent checkout success) and Scenario 2 (Hallucinating Agent overspend security decline):
+```bash
+npm run live-demo
+```
+
+### 4. Start the Express MCP/Merchant Server
+Boot the server to expose card requesting endpoints (`POST /request_task_card`, `GET /checkout`, `POST /charge`):
+```bash
+npm run server
+```
+
+### 5. Stdio MCP Integration Pattern
+If the host project needs to use ZeroDOM via Model Context Protocol stdio, configure the agent framework to start:
+```bash
+node dist/scripts/mcp-server.js
+```
+
+### 6. Card Request & Autonomous Checkout Adoption
+Copy and paste this pattern to adopt ZeroDOM inside any autonomous agent execution script:
+```javascript
+import { runAutonomousCheckout } from "./src/agent.js";
+
+// 1. Define Task Scope budget & locks
+const taskScope = {
+  taskDescription: "Autonomous purchase of Running Shoes",
+  max_amount: 1500, // Budget in minor units (e.g. 1500 cents = $15.00)
+  currency: "usd",
+  merchant_lock: { type: "merchant_name", value: "Stripe Hosted Checkout" },
+  ttlSeconds: 300,
+  single_use: true
+};
+
+// 2. Execute automated browser payment checkout
+// Budget: $15.00 | Item Price: $12.00 (1200 cents) -> APPROVED
+// If Item Price was $50.00 -> DECLINED_AMOUNT (Security net intercepts attempt)
+const result = await runAutonomousCheckout(taskScope, 1200);
+console.log(`Checkout Status: ${result.toUpperCase()}`); // Prints: APPROVED or DECLINED_AMOUNT
+```
+
+---
+
 ## System Architecture
 
 ```mermaid
@@ -34,7 +95,7 @@ graph TD
 2. **Scope Definer**: Standardized `TaskScope` inputs enforcing an amount cap, merchant lock (merchant category MCC or merchant name), future expiry TTL, and single-use flag.
 3. **Dual Card Issuer Clients**:
    - **Sandbox Mode**: Generates valid test card numbers (Luhn checked) for browser automation checkout tests.
-   - **Stripe Issuing + Connect Sandbox**: Direct API integration with Stripe Connected accounts using the `Stripe-Account: acct_...` header. Maps scopes to Stripe's native issuing spending limits, category locks, and single-use lifecycle controls.
+   - **Stripe Issuing + Connect Sandbox**: Direct API integration with Stripe Connected accounts using the `Stripe-Account: acct_...` header. Maps scopes to Stripe's native issuing spending controls, category locks, and single-use lifecycle controls.
 4. **Constraint Verifier**: Application-level validation running defense-in-depth checks on amount, category, expiry, and reuse before or in parallel with bank/issuer checks.
 5. **Durable JSONL Audit Log**: Append-only audit trail enabling full task story reconstruction after process restart, redacting full PAN/CVC credentials at all times.
 6. **Integration Layer (REST + MCP)**: Dual stdio-based MCP server and HTTP REST server. Supports `mint_card`, `get_card_status`, `authorize_transaction`, and `list_audit_log` tools.
@@ -74,7 +135,7 @@ ZeroDOM bundles all capabilities into a local CLI executable named `zerodome` (d
   # or
   node bin/zerodome.js readiness-check
   ```
-- **Test Suite**: Run the complete Vitest test suite (47 tests):
+- **Test Suite**: Run the complete Vitest test suite (55 tests):
   ```bash
   npm test
   ```
@@ -177,4 +238,3 @@ When moving ZeroDOM core from local sandbox/testing to production deployment, im
 - [ ] **Durable Database Persistence**: Replace in-memory ledger maps (`SandboxAccountStore` and `SandboxCardIssuerClient`) with transaction-isolated relational stores (e.g. PostgreSQL + Redis for reservations).
 - [ ] **Stripe Merchant-Name Locks**: Since Stripe Issuing's public REST API only supports category controls (`allowed_categories`), exact merchant-name locks are currently checked by the application-level `ConstraintVerifier`. For production merchant locks, request access to Stripe's private preview for merchant-ID spending controls.
 - [ ] **Background Expiry Sweep Service**: Run the `expireDueCards()` sweep task in a reliable production cron queue (rather than a simple in-memory setInterval loop) to release reservations and close expired cards.
-

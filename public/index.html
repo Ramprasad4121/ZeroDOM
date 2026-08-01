@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ZeroDOM</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="mast">
+        <div>
+          <p class="eyebrow">ZeroDOM</p>
+          <h1>Autonomous shopping agent with native HTTP payments</h1>
+        </div>
+        <div class="pill">Base Sepolia · mock settlement · x402 v2</div>
+      </section>
+
+      <section class="workspace">
+        <div class="panel audit-panel">
+          <div class="panel-head">
+            <span class="label">Agent Task</span>
+            <span class="status" id="agent-status">Ready</span>
+          </div>
+          <h2>Choose the best offer without checkout UI</h2>
+          <p class="summary">
+            The agent compares product offers, realizes it needs paid market intelligence,
+            and unlocks the decision data through x402 headers instead of a payment page.
+          </p>
+          <button id="run-audit" data-run-audit type="button">
+            Start autonomous purchase analysis
+          </button>
+          <div class="free-scan" id="free-scan">
+            <span>Public scan</span>
+            <strong>Waiting</strong>
+          </div>
+        </div>
+
+        <div class="panel payment-panel">
+          <div class="panel-head">
+            <span class="label">Network Payment Loop</span>
+            <span class="status" id="payment-status">Idle</span>
+          </div>
+          <div class="flow" aria-label="Payment flow">
+            <div class="node" id="node-request">GET</div>
+            <div class="wire"></div>
+            <div class="node" id="node-402">402</div>
+            <div class="wire"></div>
+            <div class="node" id="node-invoice">Invoice</div>
+            <div class="wire"></div>
+            <div class="node" id="node-sign">Sign</div>
+            <div class="wire"></div>
+            <div class="node" id="node-replay">Replay</div>
+            <div class="wire"></div>
+            <div class="node" id="node-200">200</div>
+          </div>
+          <div class="payment-metrics" aria-label="Payment proof metrics">
+            <span>402 to 200 <strong data-handshake-time>Awaiting</strong></span>
+            <span>DOM payment actions <strong data-dom-payment-actions>0</strong></span>
+          </div>
+          <pre id="network-log" class="network-log">Flight recorder armed. Awaiting browser request...</pre>
+        </div>
+      </section>
+
+      <section class="payment-evidence" aria-label="Decoded payment headers">
+        <div class="evidence-block">
+          <span class="label">Decoded PAYMENT-REQUIRED</span>
+          <dl class="evidence-list">
+            <div><dt>Amount</dt><dd data-invoice-amount>Awaiting 402</dd></div>
+            <div><dt>Network</dt><dd data-invoice-network>Awaiting 402</dd></div>
+            <div><dt>Recipient</dt><dd data-invoice-recipient>Awaiting 402</dd></div>
+            <div><dt>Nonce</dt><dd data-invoice-nonce>Awaiting 402</dd></div>
+            <div><dt>Expires</dt><dd data-invoice-expiry>Awaiting 402</dd></div>
+          </dl>
+        </div>
+        <div class="evidence-block">
+          <span class="label">Decoded PAYMENT-RESPONSE</span>
+          <dl class="evidence-list">
+            <div><dt>Payer</dt><dd data-receipt-payer>Awaiting 200</dd></div>
+            <div><dt>Settlement</dt><dd data-receipt-settlement>Awaiting 200</dd></div>
+            <div><dt>Receipt</dt><dd data-receipt-message>Awaiting 200</dd></div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="report" id="report" data-paid="false">
+        <div class="panel-head">
+          <span class="label">Premium Shopping Intelligence</span>
+          <span class="status locked" id="report-status">Locked</span>
+        </div>
+        <div id="report-body" class="report-body">
+          <p>
+            Premium market intelligence unlocks only after a valid signed payment
+            payload is replayed through HTTP headers.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "zerodome",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ZeroDOM demo: autonomous browser agent pays a 402-gated shopping intelligence endpoint with an x402-style EVM signature.",
+  "bin": {
+    "zerodome": "./bin/zerodome.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "demo": "node scripts/run-demo.js",
+    "demo:headless": "HEADLESS=1 node scripts/run-demo.js",
+    "self-test": "node scripts/self-test.js"
+  },
+  "dependencies": {
+    "ethers": "^6.13.5",
+    "express": "^4.21.2",
+    "playwright": "^1.46.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

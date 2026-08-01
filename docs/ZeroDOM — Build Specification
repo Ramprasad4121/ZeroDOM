@@ -1,0 +1,88 @@
+# ZeroDOM — Build Specification
+
+## One-liner
+A system that mints a single-use, tightly scoped virtual payment card for each AI agent task, so an agent can complete real checkout flows on real websites while being cryptographically incapable of spending outside the bounds it was given — enforced by the card issuer, not by trusting the agent's behavior.
+
+## The problem
+Letting an AI agent buy something today means either handing it a real, unrestricted card, or waiting for the whole internet to adopt a new payment protocol. Neither is usable now. The actual unsolved question isn't "can an agent complete a checkout flow" — that's largely solved by browser automation tools. It's: **how much can you trust an agent with money it can spend right now, on a site you don't control, without watching it?**
+
+## The core mechanism
+1. Before a task starts, the system defines a **TaskScope**: max amount, allowed merchant(s) or merchant category, expiry window, single-use flag.
+2. The system calls a card-issuing API (sandbox/test mode) to **mint a virtual card** with those constraints baked in at the issuer level — not just checked in application code.
+3. A browser agent (Playwright, or any existing browser-automation tool) performs a **normal, real checkout flow** on a real site using that card's details.
+4. If the agent (due to a bug, a hallucination, or a malicious/prompt-injected page) tries to charge more than the limit, a second time, or on a different merchant — **the bank/issuer declines it**. The agent has no way to override this because the constraint lives outside its own reasoning.
+5. Every attempt (successful, declined, or expired) is logged to an audit trail for review.
+
+## Architecture — components to build
+
+1. **Scope Definer** — takes a task description and produces a `TaskScope` object (amount cap, merchant lock, expiry, single-use).
+2. **Card Issuer Client** — wraps a card-issuing sandbox API (e.g. Stripe Issuing test mode) to mint a card matching a `TaskScope`, and to fetch its real-time status/transaction history.
+3. **Agent Executor** — drives an existing browser-automation tool (Playwright) through a real checkout flow, filling in the minted card's details at the payment step.
+4. **Audit Log** — records every mint, every authorization attempt (approved/declined), and every expiry, with timestamps and the `TaskScope` it was checked against.
+5. **Constraint Verifier** (defense in depth, not the primary control) — an application-level check that independently validates each transaction attempt against the `TaskScope` before it reaches the issuer, so failures are caught and logged even faster than waiting on the bank's decline.
+6. **Dashboard/CLI** — shows active cards, their scope, remaining budget, and a live audit trail. Minimal is fine — this is for demoing and debugging, not a product surface.
+
+## Data models (define these first)
+
+```
+TaskScope {
+  task_id, max_amount, currency, merchant_lock (name or MCC),
+  expires_at, single_use: bool
+}
+
+CardRecord {
+  card_id, task_id, issuer_card_ref, status (active/expired/used/revoked),
+  minted_at
+}
+
+TransactionAttempt {
+  card_id, attempted_amount, attempted_merchant, timestamp,
+  result (approved/declined_amount/declined_merchant/declined_expired/declined_reused),
+  reason
+}
+```
+
+## Functional requirements
+- Mint a card scoped to a `TaskScope` and return its usable details (sandbox test card, never real card data).
+- Reject scope definitions that are missing a cap, an expiry, or a merchant lock — no card should ever be mintable without all three.
+- Drive a real checkout flow end to end on at least one real e-commerce or booking site (in sandbox/test payment mode) using the minted card.
+- Detect and log every declined attempt with a specific reason, not a generic failure.
+- Auto-expire and revoke a card the moment its task completes or its expiry window passes, whichever comes first.
+- Expose an audit trail that's queryable by task, by card, and by outcome.
+
+## Non-functional / security requirements
+- The agent must never see or handle a real, unscoped payment credential at any point.
+- Every constraint must be enforceable by the issuer's own systems, not solely by application logic — application-level checks are a second layer, never the only layer.
+- No card may be reused across tasks, even manually.
+- All secrets (API keys) live server-side only, never in agent-visible context or logs.
+
+## Test plan — build these as you go, not at the end
+
+**Unit tests**
+- TaskScope validation rejects incomplete scopes.
+- Card minting fails closed (no card issued) if any constraint is missing or malformed.
+
+**Integration tests**
+- Mint → use within scope → transaction approved → card auto-expires after single use.
+- Mint → attempt above cap → declined with correct reason logged.
+- Mint → attempt on wrong merchant → declined with correct reason logged.
+- Mint → wait past expiry → attempt → declined with correct reason logged.
+
+**Adversarial / end-to-end tests** (these matter most — this is a security project)
+- Simulate a prompt-injected page that tries to trick the agent into a second charge attempt — confirm the card blocks it regardless of what the agent "decides" to do.
+- Simulate the agent retrying a failed transaction — confirm no duplicate card issuance or scope bypass occurs.
+- Kill the agent process mid-transaction — confirm the card still expires correctly and no orphaned active card is left behind.
+
+**Live demo test**
+- One full real run: mint → real site checkout → approved purchase → auto-expiry confirmed → audit trail shown.
+- One deliberate over-scope run: agent attempts something outside the `TaskScope` → declined live → shown in the audit trail as a graceful, expected outcome, not a crash.
+
+## Definition of "100% ready" — the loop's exit condition
+Keep iterating (build → test → fix → retest) until **all** of the following are true simultaneously:
+1. Every test above passes, including all adversarial cases.
+2. A live run completes end to end against a real site in sandbox payment mode with zero manual intervention.
+3. A deliberate over-scope attempt is declined and logged correctly, every time, across at least 5 repeated runs (no flakiness).
+4. No real, unscoped payment credential ever appears in logs, agent context, or version control.
+5. The audit trail correctly reconstructs the full story of any given task from the logs alone.
+
+If any of these fail, treat it as a defect, fix it, and re-run the full test plan — not just the failing case — before checking the loop's exit condition again.

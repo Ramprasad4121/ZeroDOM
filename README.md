@@ -1,7 +1,17 @@
 # ZeroDOM
 
 ZeroDOM is a hackathon demo for an autonomous, financially sovereign web agent.
-It removes payment from browser UI and moves it into the HTTP exchange:
+It is evolving into an open-source safety layer for autonomous payments.
+
+There are now two tracks in the repo:
+
+- `x402` demo path: removes payment from browser UI and moves it into an HTTP
+  402/signature exchange.
+- scoped-card core: mints single-task sandbox virtual cards with amount,
+  merchant, expiry, and single-use constraints enforced outside the agent.
+
+The original browser demo removes payment from browser UI and moves it into the
+HTTP exchange:
 
 1. A browser agent requests premium shopping intelligence.
 2. The server rejects the request with `402 Payment Required`.
@@ -21,6 +31,9 @@ merchant checkout.
 
 ```bash
 npm install
+npm test
+npm run typecheck
+npm run card-demo
 npm run test-server
 npm run self-test
 npm run demo
@@ -78,6 +91,38 @@ with `PAYMENT-SIGNATURE`, then fulfills the original browser fetch with the
 paid `200` payload. The browser only renders Flight Recorder events through
 `window.ZeroDOMDemo.pushEvent()` and never receives a private key.
 
+## Scoped Virtual-Card Core
+
+The updated open-source plan lives in [docs/AGENTS.md](docs/AGENTS.md)
+and [docs/ZeroDOM — Build Specification](docs/ZeroDOM%20%E2%80%94%20Build%20Specification).
+The new TypeScript core is under [src/core/index.ts](src/core/index.ts).
+
+Run the deterministic sandbox flow:
+
+```bash
+npm run card-demo
+```
+
+It mints two sandbox virtual cards:
+
+- one in-scope authorization that is approved and then locked after single use
+- one over-cap authorization that is declined and written to the audit trail
+
+The core currently includes:
+
+- `TaskScope` validation that fails closed without amount cap, expiry, or
+  merchant lock
+- sandbox issuer client with unique card records and no card reuse per task
+- constraint verifier for amount, merchant, expiry, and reuse decisions
+- audit log queryable by task, card, and transaction outcome
+- Stripe Issuing sandbox parameter guard that rejects live keys and maps
+  category locks to spending controls plus single-use lifecycle controls
+- scripted executor used to test hostile checkout behavior
+
+The real checkout target site is intentionally not hardcoded. Per
+`docs/AGENTS.md`, the target site must be chosen explicitly because browser
+automation and bot-detection risk depend on that choice.
+
 ## Demo Narrative
 
 An autonomous shopping agent compares offers for an iPhone 16. The public scan
@@ -124,6 +169,10 @@ Reference docs checked during implementation:
 The demo uses public Hardhat private keys. They are disposable test keys and must
 never hold real funds. Production ZeroDOM should use a managed wallet, spend
 limits, audit logs, and facilitator or direct onchain settlement.
+
+For the scoped-card core, Stripe or issuer credentials must be sandbox/test mode
+only. `.env` is gitignored, and `.env.example` contains placeholders only.
+Live Stripe secret keys are rejected by the Stripe parameter guard.
 
 The local signer has an explicit policy: it only signs the expected `exact`
 Base Sepolia USDC invoice for the local mock recipient, price, nonce, and valid

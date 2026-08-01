@@ -12,6 +12,7 @@
     "demo": "node scripts/run-demo.js",
     "demo:headless": "HEADLESS=1 node scripts/run-demo.js",
     "self-test": "node scripts/self-test.js",
+    "start-server": "node --import tsx scripts/start-server.ts",
     "test-server": "node scripts/test-server.js",
     "card-demo": "node --import tsx scripts/card-sandbox-demo.ts",
     "checkout-harness": "node --import tsx scripts/playwright-checkout-harness.ts",

@@ -14,6 +14,7 @@ Usage:
   zerodome demo             Run the visible browser payment demo
   zerodome demo:headless    Run the same flow headlessly
   zerodome self-test        Alias for the server security preflight
+  zerodome start-server     Start Express MCP/Merchant integration server
   zerodome test-server      Run the named server security preflight
   zerodome card-demo        Run scoped virtual-card sandbox flow
   zerodome checkout-harness Run deterministic Playwright checkout harness
@@ -104,6 +105,12 @@ if (command === "self-test") {
   process.exit(result.status ?? 1);
 } else if (command === "order-shoes-inr") {
   const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/order-shoes-inr.ts")], {
+    stdio: "inherit",
+    env: process.env
+  });
+  process.exit(result.status ?? 1);
+} else if (command === "start-server") {
+  const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/start-server.ts")], {
     stdio: "inherit",
     env: process.env
   });

@@ -214,11 +214,11 @@ export function verifyPaymentPayload(paymentPayload, { issuedNonces, spentNonces
     if (BigInt(authorization.validBefore) <= now) {
       return fail("authorization expired");
     }
-    if (!issuedNonces.has(authorization.nonce)) {
-      return fail("nonce was not issued by this server");
-    }
     if (spentNonces.has(authorization.nonce)) {
       return fail("nonce was already spent");
+    }
+    if (!issuedNonces.has(authorization.nonce)) {
+      return fail("nonce was not issued by this server");
     }
 
     const recovered = ethers.verifyTypedData(

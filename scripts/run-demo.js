@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 import { startServer } from "../src/server.js";
-import { decodeBase64Json, encodeBase64Json, signPaymentRequired } from "../src/payment.js";
+import { decodeBase64Json } from "../src/payment.js";
+import { generatePaymentSignature } from "../src/signer.js";
 
 const headless = process.env.HEADLESS === "1";
 const port = Number(process.env.ZERODOME_PORT ?? process.env.PORT ?? 4020);
@@ -54,19 +55,18 @@ try {
         headers: unpaidHeaders
       });
 
-      const paymentPayload = await signPaymentRequired(paymentRequired);
-      const paymentSignatureHeader = encodeBase64Json(paymentPayload);
+      const signedPayment = await generatePaymentSignature(paymentRequired);
       console.log("[Signer] EIP-3009 authorization signed");
       await pushUiEvent(page, "signed", {
-        signature: paymentPayload.payload.signature,
-        signatureComponents: paymentPayload.payload.signatureComponents
+        signature: signedPayment.signature,
+        signatureComponents: signedPayment.signatureComponents
       });
 
       console.log("[Execute] Replaying request with PAYMENT-SIGNATURE");
       await pushUiEvent(page, "replayed", {});
       const paidResponse = await page.request.get(route.request().url(), {
         headers: {
-          "PAYMENT-SIGNATURE": paymentSignatureHeader
+          "PAYMENT-SIGNATURE": signedPayment.encodedPaymentPayload
         }
       });
       const paidBody = await paidResponse.body();

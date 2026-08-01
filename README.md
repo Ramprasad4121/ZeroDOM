@@ -21,6 +21,7 @@ merchant checkout.
 
 ```bash
 npm install
+npm run test-server
 npm run self-test
 npm run demo
 ```
@@ -40,6 +41,7 @@ Use an isolated port without disturbing a live stage server:
 
 ```bash
 ZERODOME_PORT=4022 npm run demo:headless
+ZERODOME_PORT=4022 npm run test-server
 ZERODOME_PORT=4022 npm run self-test
 ```
 
@@ -106,6 +108,10 @@ the demo path uses the v2 `PAYMENT-SIGNATURE` header. Coinbase's v1 to v2
 migration guide identifies `X-PAYMENT` as the v1 header and
 `PAYMENT-SIGNATURE` as the v2 header.
 
+Malformed or invalid submitted `PAYMENT-SIGNATURE` headers return
+`400 Bad Request` with a `BAD_PAYMENT_SIGNATURE` JSON body. Missing payment
+material remains a `402 Payment Required` challenge.
+
 Reference docs checked during implementation:
 
 - https://docs.x402.org/core-concepts/http-402
@@ -123,6 +129,16 @@ The local signer has an explicit policy: it only signs the expected `exact`
 Base Sepolia USDC invoice for the local mock recipient, price, nonce, and valid
 authorization window. It rejects unexpected terms before an authorization is
 created.
+
+The named phase artifacts are:
+
+- `src/server.js`: local Express paywall and verifier
+- `src/signer.js`: disposable local EVM wallet boundary
+- `public/index.html` and `public/app.js`: Flight Recorder UI and
+  `window.ZeroDOMDemo.pushEvent()`
+- `scripts/run-demo.js`: Playwright route interceptor
+- `scripts/test-server.js`: server security preflight for 402, 400, and 200
+  outcomes
 
 The demo does not place a real order. It only unlocks synthetic shopping
 intelligence after local signature verification.

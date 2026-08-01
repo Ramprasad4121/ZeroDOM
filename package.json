@@ -11,7 +11,8 @@
     "start": "node src/server.js",
     "demo": "node scripts/run-demo.js",
     "demo:headless": "HEADLESS=1 node scripts/run-demo.js",
-    "self-test": "node scripts/self-test.js"
+    "self-test": "node scripts/self-test.js",
+    "test-server": "node scripts/test-server.js"
   },
   "dependencies": {
     "ethers": "^6.13.5",

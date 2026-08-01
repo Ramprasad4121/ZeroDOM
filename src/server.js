@@ -59,7 +59,7 @@ export function createApp() {
     try {
       paymentPayload = decodeBase64Json(paymentHeader);
     } catch {
-      sendPaymentRejected(req, res, issuedNonces, "payment header is not valid base64 JSON");
+      sendPaymentRejected(res, "payment header is not valid base64 JSON");
       return;
     }
 
@@ -74,7 +74,7 @@ export function createApp() {
     }
 
     if (!verification.ok) {
-      sendPaymentRejected(req, res, issuedNonces, verification.reason);
+      sendPaymentRejected(res, verification.reason);
       return;
     }
 
@@ -117,7 +117,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log(`ZeroDOM mock paywall running at http://${host}:${port}`);
 }
 
-function sendPaymentRequired(req, res, issuedNonces, rejectionReason) {
+function sendPaymentRequired(req, res, issuedNonces) {
   const nonce = makeAuthorizationNonce();
   issuedNonces.set(nonce, Date.now() + 60_000);
 
@@ -125,21 +125,20 @@ function sendPaymentRequired(req, res, issuedNonces, rejectionReason) {
     resourceUrl: absoluteRequestUrl(req),
     nonce
   });
-  const body = rejectionReason
-    ? { ...paymentRequired, error: "Payment rejected", reason: rejectionReason }
-    : paymentRequired;
-
   res
     .status(402)
     .set({
       "PAYMENT-REQUIRED": encodeBase64Json(paymentRequired),
       "Access-Control-Expose-Headers": "PAYMENT-REQUIRED, PAYMENT-RESPONSE"
     })
-    .json(body);
+    .json(paymentRequired);
 }
 
-function sendPaymentRejected(req, res, issuedNonces, reason) {
-  sendPaymentRequired(req, res, issuedNonces, reason);
+function sendPaymentRejected(res, reason) {
+  res.status(400).json({
+    error: "BAD_PAYMENT_SIGNATURE",
+    reason
+  });
 }
 
 function absoluteRequestUrl(req) {

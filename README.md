@@ -118,6 +118,57 @@ node bin/zerodome.js stripe-smoke
 
 ---
 
+## Model Context Protocol (MCP) Integration
+
+ZeroDOM features a fully compliant, production-ready **Model Context Protocol (MCP)** server communicating over `stdio`. This allows agent clients (such as Claude, Cursor, Windsurf, or custom LLM executors) to request and control virtual cards autonomously.
+
+### Exposed Tools
+- **`mint_card`**: Request a new virtual payment card.
+  - *Parameters*: `caller_id` (string), `task_scope` (object containing `maxAmount`, `merchantLock`, `ttlSeconds`, `singleUse`).
+- **`get_card_status`**: Query the balance, spending lock, and status of an issued card.
+  - *Parameters*: `card_id` (string).
+- **`authorize_transaction`**: Simulate or request a payment authorization against card constraints.
+  - *Parameters*: `card_id` (string), `attempted_amount` (number), `attempted_merchant` (string), `attempted_merchant_category` (optional string).
+- **`list_audit_log`**: Retrieve the append-only log of scope definitions, mints, attempts, and revocations.
+  - *Parameters*: None.
+
+### Production Execution Setup
+Ensure you compile the TypeScript files to native JavaScript first:
+```bash
+npm run build
+```
+
+### Claude Desktop Configuration
+To connect Claude Desktop to the ZeroDOM MCP server, add the server to your `claude_desktop_config.json` (located at `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "zerodom": {
+      "command": "node",
+      "args": [
+        "/Users/ramprasadgoud/Documents/ZeroDOM/dist/scripts/mcp-server.js"
+      ],
+      "env": {
+        "ZERODOM_MCP_API_KEY": "zd_test_your_secret_api_key_here",
+        "ZERODOM_MCP_CONNECT_ACCOUNT_ID": "acct_your_stripe_connect_id_here",
+        "ZERODOM_MCP_INITIAL_BALANCE": "10000"
+      }
+    }
+  }
+}
+```
+
+### IDE Configuration (Cursor & Windsurf)
+Add the server under **Cursor Settings > Features > MCP**:
+- **Name**: `ZeroDOM`
+- **Type**: `command`
+- **Command**: `node /Users/ramprasadgoud/Documents/ZeroDOM/dist/scripts/mcp-server.js`
+
+Add the environment variables (`ZERODOM_MCP_API_KEY`, `ZERODOM_MCP_CONNECT_ACCOUNT_ID`, etc.) to match your account properties.
+
+---
+
 ## Production Readiness Checklist
 
 When moving ZeroDOM core from local sandbox/testing to production deployment, implement the following changes:
@@ -126,3 +177,4 @@ When moving ZeroDOM core from local sandbox/testing to production deployment, im
 - [ ] **Durable Database Persistence**: Replace in-memory ledger maps (`SandboxAccountStore` and `SandboxCardIssuerClient`) with transaction-isolated relational stores (e.g. PostgreSQL + Redis for reservations).
 - [ ] **Stripe Merchant-Name Locks**: Since Stripe Issuing's public REST API only supports category controls (`allowed_categories`), exact merchant-name locks are currently checked by the application-level `ConstraintVerifier`. For production merchant locks, request access to Stripe's private preview for merchant-ID spending controls.
 - [ ] **Background Expiry Sweep Service**: Run the `expireDueCards()` sweep task in a reliable production cron queue (rather than a simple in-memory setInterval loop) to release reservations and close expired cards.
+

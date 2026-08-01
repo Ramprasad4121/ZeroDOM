@@ -6,3 +6,4 @@ test-results/
 .gstack/
 *.log
 audit-log-hackathon.json
+dist/

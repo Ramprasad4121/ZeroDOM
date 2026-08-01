@@ -29,7 +29,8 @@
     "cli-dashboard": "node --import tsx scripts/cli-dashboard.ts",
     "live-demo": "node --import tsx examples/live-demo.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit false --outDir dist"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

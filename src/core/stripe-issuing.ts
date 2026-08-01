@@ -16,7 +16,7 @@ export interface StripeCardCreateOptions {
 
 export interface StripeSandboxClientOptions {
   stripeSecretKey: string;
-  stripeConnectAccountId: string;
+  stripeConnectAccountId?: string;
   cardholderId: string;
   fetchImpl?: FetchLike;
   baseUrl?: string;
@@ -151,12 +151,16 @@ export class StripeIssuingSandboxClient {
     now = () => new Date()
   }: StripeSandboxClientOptions) {
     assertStripeSandboxKey(stripeSecretKey);
-    assertStripeConnectAccountId(stripeConnectAccountId);
+    if (stripeConnectAccountId) {
+      assertStripeConnectAccountId(stripeConnectAccountId);
+      this.#stripeConnectAccountId = stripeConnectAccountId;
+    } else {
+      this.#stripeConnectAccountId = "";
+    }
     if (!cardholderId) {
       throw new StripeSandboxConfigError("Stripe Issuing cardholder ID is required");
     }
     this.#stripeSecretKey = stripeSecretKey;
-    this.#stripeConnectAccountId = stripeConnectAccountId;
     this.#cardholderId = cardholderId;
     this.#fetchImpl = fetchImpl;
     this.#baseUrl = baseUrl.replace(/\/+$/, "");
@@ -241,9 +245,11 @@ export class StripeIssuingSandboxClient {
     }
 
     const headers = new Headers({
-      Authorization: `Basic ${Buffer.from(`${this.#stripeSecretKey}:`).toString("base64")}`,
-      "Stripe-Account": this.#stripeConnectAccountId
+      Authorization: `Basic ${Buffer.from(`${this.#stripeSecretKey}:`).toString("base64")}`
     });
+    if (this.#stripeConnectAccountId) {
+      headers.set("Stripe-Account", this.#stripeConnectAccountId);
+    }
     if (body) {
       headers.set("Content-Type", "application/x-www-form-urlencoded");
     }

@@ -1,17 +1,20 @@
 import { StripeIssuingSandboxClient, defineTaskScope } from "../src/core/index.js";
+import * as dotenv from "dotenv";
+
+dotenv.config();
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeConnectAccountId = process.env.STRIPE_CONNECT_ACCOUNT_ID;
 const cardholderId = process.env.STRIPE_ISSUING_CARDHOLDER_ID;
 
-if (!stripeSecretKey || !stripeConnectAccountId || !cardholderId) {
-  console.error("Missing STRIPE_SECRET_KEY=sk_test_..., STRIPE_CONNECT_ACCOUNT_ID=acct_..., or STRIPE_ISSUING_CARDHOLDER_ID=ich_...");
+if (!stripeSecretKey || !cardholderId) {
+  console.error("Missing STRIPE_SECRET_KEY=sk_test_... or STRIPE_ISSUING_CARDHOLDER_ID=ich_...");
   process.exit(1);
 }
 
 const client = new StripeIssuingSandboxClient({
   stripeSecretKey,
-  stripeConnectAccountId,
+  stripeConnectAccountId: stripeConnectAccountId || undefined,
   cardholderId
 });
 

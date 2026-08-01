@@ -7,3 +7,5 @@ export * from "./issuer.js";
 export * from "./models.js";
 export * from "./scope.js";
 export * from "./stripe-issuing.js";
+export * from "./audit.js";
+export * from "./verifier.js";

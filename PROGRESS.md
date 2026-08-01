@@ -1,5 +1,13 @@
 # ZeroDOM Progress
 
+## 2026-08-01 15:08 IST
+
+Implemented the Audit Log and the Constraint Verifier (defense-in-depth).
+- Built Audit Log (`src/core/audit.ts`) storing structured logs for `logMint`, `logAttempt`, and `logRevocation` events into a local JSON file (`audit-log-hackathon.json`) with mandatory `account_id` capturing.
+- Built Constraint Verifier (`src/core/verifier.ts`) containing `verifyTransaction` to validate attemptedAmount, fuzzy-matching merchant name/category locks, and temporal expiry boundaries.
+- Wrote verifier tests (`tests/core/verifier.test.ts`) covering happy path, adversarial amount overreach (+1 cent decline), merchant lock failures, temporal expiry checks, and fuzzy name match approvals.
+- All 55 tests pass successfully. Ready for the final step: the Dashboard/CLI to visualize this audit trail.
+
 ## 2026-08-01 15:01 IST
 
 Completed the Stripe test-mode issuer integration and the integration layer MCP/REST server.

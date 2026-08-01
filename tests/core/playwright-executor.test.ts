@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  PlaywrightCheckoutExecutor,
-  SandboxCardIssuerClient,
-  defineTaskScope,
-  type PlaywrightPageLike
-} from "../../src/core/index.js";
+import { SandboxCardIssuerClient, defineTaskScope } from "../../src/core/index.js";
+import { PlaywrightCheckoutExecutor, type PlaywrightPageLike } from "../../scripts/example-client/playwright-checkout-executor.js";
 
 const NOW = new Date("2026-08-01T00:00:00.000Z");
 
@@ -92,7 +88,7 @@ describe("PlaywrightCheckoutExecutor", () => {
 
     expect(result.attempt.result).toBe("declined_amount");
     expect(result.card.status).toBe("active");
-    expect(issuer.auditLog.byOutcome("declined_amount")).toHaveLength(1);
+    expect(issuer.auditLog.byOutcome(issued.record.account_id, "declined_amount")).toHaveLength(1);
   });
 
   it("blocks a second browser checkout attempt on a single-use card", async () => {
@@ -130,7 +126,7 @@ describe("PlaywrightCheckoutExecutor", () => {
 
     expect(first.attempt.result).toBe("approved");
     expect(second.attempt.result).toBe("declined_reused");
-    expect(issuer.auditLog.byOutcome("declined_reused")).toHaveLength(1);
+    expect(issuer.auditLog.byOutcome(issued.record.account_id, "declined_reused")).toHaveLength(1);
   });
 });
 

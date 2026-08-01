@@ -1,60 +1,79 @@
 # ZeroDOM — Build Specification
 
 ## One-liner
-A system that mints a single-use, tightly scoped virtual payment card for each AI agent task, so an agent can complete real checkout flows on real websites while being cryptographically incapable of spending outside the bounds it was given — enforced by the card issuer, not by trusting the agent's behavior.
+An MCP server (plus REST API) that any user adds to their own agent — Claude, Codex, Hermes, OpenClaw, or a custom one — to mint single-use, tightly scoped virtual payment cards. Each user connects and funds their own Stripe account; their agent's cards draw only from that user's own balance, never a shared pool. ZeroDOM never browses anything itself; it only issues, constrains, and audits money, one account at a time.
 
 ## The problem
-Letting an AI agent buy something today means either handing it a real, unrestricted card, or waiting for the whole internet to adopt a new payment protocol. Neither is usable now. The actual unsolved question isn't "can an agent complete a checkout flow" — that's largely solved by browser automation tools. It's: **how much can you trust an agent with money it can spend right now, on a site you don't control, without watching it?**
+Letting an AI agent buy something today means either handing it a real, unrestricted card, or waiting for the whole internet to adopt a new payment protocol. Neither is usable now. The actual unsolved question isn't "can an agent complete a checkout flow" — every major agent framework already handles browsing and tool use on its own. It's: **how much can you trust *any* agent, regardless of which framework built it, with money it can spend right now, on a site you don't control, without watching it?**
+
+## Who calls ZeroDOM, and whose money it spends
+ZeroDOM is agent-agnostic and multi-tenant. It does not care whether the caller is Claude using it as an MCP tool, a Codex-based coding agent, a Hermes or OpenClaw agent, or a bespoke script — but it always cares *which user's account* is calling, because that determines whose money is on the line. Before any card can be minted:
+1. A user signs up with ZeroDOM and connects their own Stripe account (Stripe Connect), funding it themselves.
+2. ZeroDOM issues that user a credential (an API key, and/or an MCP connection scoped to them) to add to their agent.
+3. From then on, that user's agent can request cards, but every card it mints draws only from that user's own connected balance — never from ZeroDOM's own money, and never from another user's balance.
+
+The agent flow itself is unchanged: request a scoped card, do its own browsing/checkout however it normally would, and let the issuer enforce the limits. What's new is that "the pre-funded balance" is now per-user, not a single pool ZeroDOM's operator has to personally back.
 
 ## The core mechanism
-1. Before a task starts, the system defines a **TaskScope**: max amount, allowed merchant(s) or merchant category, expiry window, single-use flag.
-2. The system calls a card-issuing API (sandbox/test mode) to **mint a virtual card** with those constraints baked in at the issuer level — not just checked in application code.
-3. A browser agent (Playwright, or any existing browser-automation tool) performs a **normal, real checkout flow** on a real site using that card's details.
-4. If the agent (due to a bug, a hallucination, or a malicious/prompt-injected page) tries to charge more than the limit, a second time, or on a different merchant — **the bank/issuer declines it**. The agent has no way to override this because the constraint lives outside its own reasoning.
-5. Every attempt (successful, declined, or expired) is logged to an audit trail for review.
+1. Before a task starts, the calling agent (or a human on its behalf) requests a **TaskScope**: max amount, allowed merchant(s) or merchant category, expiry window, single-use flag — authenticated as a specific user account.
+2. ZeroDOM calls the card-issuing API (Stripe Issuing, via that user's connected Stripe account) to **mint a virtual card** with those constraints baked in at the issuer level, drawing against that user's own funded balance — and returns the card details to the calling agent.
+3. The calling agent performs a **normal, real checkout flow** on a real site using that card's details, using whatever browsing or tool-use method it already has.
+4. If the agent (due to a bug, a hallucination, or a malicious/prompt-injected page) tries to charge more than the limit, a second time, or on a different merchant — **the bank/issuer declines it**. The agent has no way to override this because the constraint lives outside its own reasoning, and outside ZeroDOM's own code too.
+5. Every attempt (successful, declined, or expired) is logged to an audit trail scoped to that user's account, regardless of which agent triggered it.
 
 ## Architecture — components to build
 
-1. **Scope Definer** — takes a task description and produces a `TaskScope` object (amount cap, merchant lock, expiry, single-use).
-2. **Card Issuer Client** — wraps a card-issuing sandbox API (e.g. Stripe Issuing test mode) to mint a card matching a `TaskScope`, and to fetch its real-time status/transaction history.
-3. **Agent Executor** — drives an existing browser-automation tool (Playwright) through a real checkout flow, filling in the minted card's details at the payment step.
-4. **Audit Log** — records every mint, every authorization attempt (approved/declined), and every expiry, with timestamps and the `TaskScope` it was checked against.
-5. **Constraint Verifier** (defense in depth, not the primary control) — an application-level check that independently validates each transaction attempt against the `TaskScope` before it reaches the issuer, so failures are caught and logged even faster than waiting on the bank's decline.
-6. **Dashboard/CLI** — shows active cards, their scope, remaining budget, and a live audit trail. Minimal is fine — this is for demoing and debugging, not a product surface.
+1. **Account & Funding Layer** — user signup, Stripe Connect onboarding, and a per-account credential (API key and/or scoped MCP connection) that ties every later call to exactly one funded balance. This is the first thing a user sets up, before any agent can mint anything.
+2. **Scope Definer** — takes a task description and produces a `TaskScope` object (amount cap, merchant lock, expiry, single-use), always tied to the calling account.
+3. **Card Issuer Client** — wraps Stripe Issuing, acting on behalf of the specific user's connected Stripe account, to mint a card matching a `TaskScope` and to fetch its real-time status/transaction history.
+4. **Integration Layer** — the only surface any agent talks to, and the primary way ZeroDOM ships. Expose it as an MCP server first (so Claude and other MCP-compatible agents can add it as a native tool), plus a REST/JSON API for everything else. Every call is authenticated to one account. Endpoints/tools: `mint_card(task_scope)`, `get_card_status(card_id)`, `list_audit_log(filters)`. This layer contains no browsing logic of any kind.
+5. **Audit Log** — records every mint, every authorization attempt (approved/declined), and every expiry, with timestamps, the `TaskScope` it was checked against, which account it belongs to, and which caller/agent requested it.
+6. **Constraint Verifier** (defense in depth, not the primary control) — an application-level check that independently validates each transaction attempt against the `TaskScope` before it reaches the issuer, so failures are caught and logged even faster than waiting on the bank's decline.
+7. **Dashboard/CLI** — shows a single account's active cards, their scope, remaining balance, and a live audit trail. Minimal is fine — this is for demoing and debugging, not a product surface.
+8. **Example client** (optional, separate from core) — a thin reference script showing one agent (e.g. a Playwright-driven one) calling the Integration Layer end to end, purely to prove the API works. This must be clearly separable from ZeroDOM itself — deleting it should not remove any ZeroDOM functionality.
 
 ## Data models (define these first)
 
 ```
+Account {
+  account_id, stripe_connect_id, api_key_hash, created_at, status (active/suspended)
+}
+
 TaskScope {
-  task_id, max_amount, currency, merchant_lock (name or MCC),
+  account_id, task_id, max_amount, currency, merchant_lock (name or MCC),
   expires_at, single_use: bool
 }
 
 CardRecord {
-  card_id, task_id, issuer_card_ref, status (active/expired/used/revoked),
+  account_id, card_id, task_id, issuer_card_ref, status (active/expired/used/revoked),
   minted_at
 }
 
 TransactionAttempt {
-  card_id, attempted_amount, attempted_merchant, timestamp,
+  account_id, card_id, attempted_amount, attempted_merchant, timestamp,
   result (approved/declined_amount/declined_merchant/declined_expired/declined_reused),
   reason
 }
 ```
 
 ## Functional requirements
-- Mint a card scoped to a `TaskScope` and return its usable details (sandbox test card, never real card data).
+- Let a user sign up, connect their own Stripe account via Stripe Connect, and fund it before minting is possible for that account.
+- Issue each account its own credential (API key and/or MCP connection) that every later call is authenticated against.
+- Expose card minting, status checks, and audit queries as an MCP server first, plus a REST/JSON API — any agent framework must be able to use at least one of these without ZeroDOM-specific code.
+- Mint a card scoped to a `TaskScope`, always tied to one account, and return its usable details (sandbox test card, never real card data).
 - Reject scope definitions that are missing a cap, an expiry, or a merchant lock — no card should ever be mintable without all three.
-- Drive a real checkout flow end to end on at least one real e-commerce or booking site (in sandbox/test payment mode) using the minted card.
+- Reject any card-mint request that isn't tied to a valid, funded account — no card should ever be issued against a balance that isn't the caller's own.
+- Prove the API works end to end using the separate example client against at least one real e-commerce or booking site (sandbox/test payment mode) — this proves the integration surface, it is not part of ZeroDOM's core responsibility.
 - Detect and log every declined attempt with a specific reason, not a generic failure.
 - Auto-expire and revoke a card the moment its task completes or its expiry window passes, whichever comes first.
-- Expose an audit trail that's queryable by task, by card, and by outcome.
+- Expose an audit trail that's queryable by task, by card, by outcome, and by which agent/caller requested it — always scoped to the account making the query, never across accounts.
 
 ## Non-functional / security requirements
 - The agent must never see or handle a real, unscoped payment credential at any point.
 - Every constraint must be enforceable by the issuer's own systems, not solely by application logic — application-level checks are a second layer, never the only layer.
 - No card may be reused across tasks, even manually.
-- All secrets (API keys) live server-side only, never in agent-visible context or logs.
+- All secrets (API keys, Stripe Connect credentials) live server-side only, never in agent-visible context or logs.
+- **Account isolation is a hard boundary.** One account's credential must never be able to mint a card against, view the audit log of, or in any way affect another account's balance or cards — this must be enforced at the data layer (every query scoped by `account_id`), not just checked in a UI.
 
 ## Test plan — build these as you go, not at the end
 
@@ -72,6 +91,8 @@ TransactionAttempt {
 - Simulate a prompt-injected page that tries to trick the agent into a second charge attempt — confirm the card blocks it regardless of what the agent "decides" to do.
 - Simulate the agent retrying a failed transaction — confirm no duplicate card issuance or scope bypass occurs.
 - Kill the agent process mid-transaction — confirm the card still expires correctly and no orphaned active card is left behind.
+- Attempt to mint a card, fetch card status, or read an audit log using account A's credential against account B's data — confirm every case is rejected, not just hidden from the UI.
+- Attempt to mint a card for an account with no connected or insufficiently funded Stripe balance — confirm it fails closed with a clear reason, not a generic error.
 
 **Live demo test**
 - One full real run: mint → real site checkout → approved purchase → auto-expiry confirmed → audit trail shown.
@@ -82,7 +103,8 @@ Keep iterating (build → test → fix → retest) until **all** of the followin
 1. Every test above passes, including all adversarial cases.
 2. A live run completes end to end against a real site in sandbox payment mode with zero manual intervention.
 3. A deliberate over-scope attempt is declined and logged correctly, every time, across at least 5 repeated runs (no flakiness).
-4. No real, unscoped payment credential ever appears in logs, agent context, or version control.
-5. The audit trail correctly reconstructs the full story of any given task from the logs alone.
+4. Every cross-account isolation test passes — no credential can ever touch another account's cards, balance, or audit log.
+5. No real, unscoped payment credential ever appears in logs, agent context, or version control.
+6. The audit trail correctly reconstructs the full story of any given task from the logs alone, scoped correctly to its account.
 
 If any of these fail, treat it as a defect, fix it, and re-run the full test plan — not just the failing case — before checking the loop's exit condition again.

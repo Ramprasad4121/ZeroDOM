@@ -7,14 +7,11 @@ export const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 export const PRICE_USDC = "0.05";
 export const PRICE_UNITS = ethers.parseUnits(PRICE_USDC, 6).toString();
 
-// Hardhat demo keys. They are public, disposable, and must never hold real funds.
-export const DEMO_BUYER_PRIVATE_KEY =
-  process.env.DEMO_BUYER_PRIVATE_KEY ??
-  "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cb1257c951ee0872844ae7f2";
-
-export const DEMO_SERVER_PRIVATE_KEY =
-  process.env.DEMO_SERVER_PRIVATE_KEY ??
-  "0x1111111111111111111111111111111111111111111111111111111111111111";
+// Deterministic, public local-demo material. It is not loaded from the
+// environment, must never receive funds, and exists only so separate local
+// processes agree on a mock payer and recipient.
+export const DEMO_BUYER_PRIVATE_KEY = ethers.id("zerodom/local-demo/buyer/no-funds");
+export const DEMO_SERVER_PRIVATE_KEY = ethers.id("zerodom/local-demo/server/no-funds");
 
 export const buyerWallet = new ethers.Wallet(DEMO_BUYER_PRIVATE_KEY);
 export const serverWallet = new ethers.Wallet(DEMO_SERVER_PRIVATE_KEY);

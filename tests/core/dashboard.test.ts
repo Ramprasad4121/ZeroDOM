@@ -14,6 +14,7 @@ describe("Dashboard/CLI projection", () => {
     const activeScope = defineTaskScope({
       taskDescription: "Leave a declined card active for review",
       taskId: "task_dashboard_active",
+      callerId: "codex-dashboard-agent",
       maxAmount: 2_000,
       currency: "usd",
       merchantLock: { type: "merchant_category", value: "computer_software_stores" },
@@ -23,6 +24,7 @@ describe("Dashboard/CLI projection", () => {
     const usedScope = defineTaskScope({
       taskDescription: "Use one card successfully",
       taskId: "task_dashboard_used",
+      callerId: "claude-dashboard-agent",
       maxAmount: 5_000,
       currency: "usd",
       merchantLock: { type: "merchant_category", value: "computer_software_stores" },
@@ -33,6 +35,7 @@ describe("Dashboard/CLI projection", () => {
     const usedCard = issuer.mintCard(usedScope, NOW);
     issuer.authorize(
       {
+        account_id: activeCard.record.account_id,
         card_id: activeCard.record.card_id,
         attempted_amount: 2_100,
         attempted_merchant: "Sandbox Laptop Store",
@@ -42,6 +45,7 @@ describe("Dashboard/CLI projection", () => {
     );
     issuer.authorize(
       {
+        account_id: usedCard.record.account_id,
         card_id: usedCard.record.card_id,
         attempted_amount: 4_200,
         attempted_merchant: "Sandbox Laptop Store",
@@ -51,6 +55,7 @@ describe("Dashboard/CLI projection", () => {
     );
 
     const snapshot = buildDashboardSnapshot({
+      accountId: activeScope.account_id,
       issuer,
       auditLog: issuer.auditLog,
       now: NOW,
@@ -58,13 +63,14 @@ describe("Dashboard/CLI projection", () => {
     });
     const activeSummary = snapshot.active_cards.at(0);
     const rendered = formatDashboardSnapshot(snapshot);
-    const activeDetails = issuer.getCardDetails(activeCard.record.card_id);
-    const usedDetails = issuer.getCardDetails(usedCard.record.card_id);
+    const activeDetails = issuer.getCardDetails(activeCard.record.card_id, activeCard.record.account_id);
+    const usedDetails = issuer.getCardDetails(usedCard.record.card_id, usedCard.record.account_id);
 
     expect(snapshot.active_cards).toHaveLength(1);
     expect(activeSummary).toMatchObject({
       card_id: activeCard.record.card_id,
       task_id: "task_dashboard_active",
+      caller_id: "codex-dashboard-agent",
       remaining_amount: 2_000,
       authorization_count: 1,
       last_result: "declined_amount",
@@ -82,6 +88,7 @@ describe("Dashboard/CLI projection", () => {
       "card_revoked"
     ]);
     expect(rendered).toContain("Active cards");
+    expect(rendered).toContain("caller=codex-dashboard-agent");
     expect(rendered).toContain("remaining=USD 20.00");
     expect(rendered).toContain("result=declined_amount");
     expect(rendered).toContain("result=approved");
@@ -98,6 +105,7 @@ describe("Dashboard/CLI projection", () => {
     const scope = defineTaskScope({
       taskDescription: "Dashboard should clean up stale active cards",
       taskId: "task_dashboard_expiry",
+      callerId: "dashboard-agent",
       maxAmount: 2_000,
       currency: "usd",
       merchantLock: { type: "merchant_name", value: "Example Shop" },
@@ -107,6 +115,7 @@ describe("Dashboard/CLI projection", () => {
     issuer.mintCard(scope, NOW);
 
     const snapshot = buildDashboardSnapshot({
+      accountId: scope.account_id,
       issuer,
       auditLog: issuer.auditLog,
       now: new Date("2026-08-01T00:00:02.000Z")

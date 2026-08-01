@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   CardIssueError,
   SandboxCardIssuerClient,
-  ScriptedAgentExecutor,
   defineTaskScope
 } from "../../src/core/index.js";
 
@@ -11,7 +10,6 @@ const NOW = new Date("2026-08-01T00:00:00.000Z");
 describe("adversarial issuer behavior", () => {
   it("blocks a prompt-injected page that tries to force a second charge", () => {
     const issuer = new SandboxCardIssuerClient();
-    const executor = new ScriptedAgentExecutor(issuer);
     const issued = issuer.mintCard(
       defineTaskScope({
         taskDescription: "Buy one item despite hostile checkout copy",
@@ -25,26 +23,28 @@ describe("adversarial issuer behavior", () => {
       NOW
     );
 
-    const result = executor.runCheckout({
-      cardId: issued.record.card_id,
-      now: NOW,
-      steps: [
-        {
-          label: "intended checkout",
-          attempted_amount: 2_500,
-          attempted_merchant: "Example Shop"
-        },
-        {
-          label: "prompt-injected second checkout",
-          attempted_amount: 2_500,
-          attempted_merchant: "Example Shop"
-        }
-      ]
-    });
+    const first = issuer.authorize(
+      {
+        account_id: issued.record.account_id,
+        card_id: issued.record.card_id,
+        attempted_amount: 2_500,
+        attempted_merchant: "Example Shop"
+      },
+      NOW
+    );
+    const second = issuer.authorize(
+      {
+        account_id: issued.record.account_id,
+        card_id: issued.record.card_id,
+        attempted_amount: 2_500,
+        attempted_merchant: "Example Shop"
+      },
+      NOW
+    );
 
-    expect(result.attempts.map((attempt) => attempt.result)).toEqual(["approved", "declined_reused"]);
-    expect(result.card.status).toBe("used");
-    expect(issuer.auditLog.byOutcome("declined_reused")).toHaveLength(1);
+    expect([first.result, second.result]).toEqual(["approved", "declined_reused"]);
+    expect(issuer.getStatusAndHistory(issued.record.card_id, issued.record.account_id).card.status).toBe("used");
+    expect(issuer.auditLog.byOutcome(issued.record.account_id, "declined_reused")).toHaveLength(1);
   });
 
   it("prevents duplicate issuance or scope bypass when the agent retries a failed transaction", () => {
@@ -62,6 +62,7 @@ describe("adversarial issuer behavior", () => {
 
     const wrongMerchant = issuer.authorize(
       {
+        account_id: issued.record.account_id,
         card_id: issued.record.card_id,
         attempted_amount: 2_500,
         attempted_merchant: "Other Shop"
@@ -73,6 +74,7 @@ describe("adversarial issuer behavior", () => {
 
     const retryInsideScope = issuer.authorize(
       {
+        account_id: issued.record.account_id,
         card_id: issued.record.card_id,
         attempted_amount: 2_500,
         attempted_merchant: "Example Shop"
@@ -80,12 +82,11 @@ describe("adversarial issuer behavior", () => {
       NOW
     );
     expect(retryInsideScope.result).toBe("approved");
-    expect(issuer.listActiveCards()).toHaveLength(0);
+    expect(issuer.listActiveCards(issued.record.account_id)).toHaveLength(0);
   });
 
   it("expires orphaned active cards after simulated agent process death", () => {
     const issuer = new SandboxCardIssuerClient();
-    const executor = new ScriptedAgentExecutor(issuer);
     const issued = issuer.mintCard(
       defineTaskScope({
         taskDescription: "Agent dies before checkout",
@@ -99,14 +100,13 @@ describe("adversarial issuer behavior", () => {
       NOW
     );
 
-    const expired = executor.simulateProcessDeath({
-      afterMintedCardId: issued.record.card_id,
-      at: new Date("2026-08-01T00:00:02.000Z")
-    });
+    const expired = issuer.expireCards(issued.record.account_id, new Date("2026-08-01T00:00:02.000Z"));
+    const card = issuer.getStatusAndHistory(issued.record.card_id, issued.record.account_id).card;
 
-    expect(expired.status).toBe("expired");
-    expect(issuer.listActiveCards()).toHaveLength(0);
-    expect(issuer.auditLog.byTask("task_process_death").map((event) => event.type)).toEqual([
+    expect(expired.map((record) => record.card_id)).toContain(issued.record.card_id);
+    expect(card.status).toBe("expired");
+    expect(issuer.listActiveCards(issued.record.account_id)).toHaveLength(0);
+    expect(issuer.auditLog.byTask(issued.record.account_id, "task_process_death").map((event) => event.type)).toEqual([
       "scope_defined",
       "card_minted",
       "card_expired"
@@ -129,14 +129,15 @@ describe("adversarial issuer behavior", () => {
     );
     issuer.authorize(
       {
+        account_id: issued.record.account_id,
         card_id: issued.record.card_id,
         attempted_amount: 2_500,
         attempted_merchant: "Example Shop"
       },
       NOW
     );
-    const details = issuer.getCardDetails(issued.record.card_id);
-    const audit = JSON.stringify(issuer.auditLog.all());
+    const details = issuer.getCardDetails(issued.record.card_id, issued.record.account_id);
+    const audit = JSON.stringify(issuer.auditLog.byAccount(issued.record.account_id));
 
     expect(audit).not.toContain(details.number);
     expect(audit).not.toContain(details.cvc);

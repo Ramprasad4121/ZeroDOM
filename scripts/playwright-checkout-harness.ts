@@ -1,5 +1,6 @@
 import { chromium } from "playwright";
-import { PlaywrightCheckoutExecutor, SandboxCardIssuerClient, defineTaskScope } from "../src/core/index.js";
+import { SandboxCardIssuerClient, defineTaskScope } from "../src/core/index.js";
+import { PlaywrightCheckoutExecutor } from "./example-client/playwright-checkout-executor.js";
 
 const now = new Date();
 const issuer = new SandboxCardIssuerClient();
@@ -7,6 +8,7 @@ const issued = issuer.mintCard(
   defineTaskScope({
     taskDescription: "Deterministic Playwright checkout harness",
     taskId: `task_playwright_harness_${Date.now()}`,
+    callerId: "playwright-example-agent",
     maxAmount: 5_000,
     currency: "usd",
     merchantLock: { type: "merchant_category", value: "computer_software_stores" },

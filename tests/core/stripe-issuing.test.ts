@@ -32,6 +32,7 @@ describe("StripeIssuingSandboxClient", () => {
       () =>
         new StripeIssuingSandboxClient({
           stripeSecretKey: ["sk", "live", "forbidden"].join("_"),
+          stripeConnectAccountId: "acct_test_connected",
           cardholderId: "ich_test_cardholder",
           fetchImpl
         })
@@ -39,7 +40,7 @@ describe("StripeIssuingSandboxClient", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("creates a scoped virtual card, retrieves expanded sandbox details, and uses idempotency", async () => {
+  it("creates a scoped virtual card under its connected account and uses idempotency", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
@@ -51,17 +52,6 @@ describe("StripeIssuingSandboxClient", () => {
           exp_month: 12,
           exp_year: 2028,
           last4: "4242"
-        });
-      }
-      if (url.includes("/issuing/cards/ic_test_123")) {
-        return jsonResponse({
-          id: "ic_test_123",
-          status: "active",
-          exp_month: 12,
-          exp_year: 2028,
-          last4: "4242",
-          number: "stripe_expanded_card_number",
-          cvc: "stripe_expanded_cvc"
         });
       }
       throw new Error(`unexpected URL ${url}`);
@@ -77,6 +67,7 @@ describe("StripeIssuingSandboxClient", () => {
     });
     const client = new StripeIssuingSandboxClient({
       stripeSecretKey: "sk_test_zerodom",
+      stripeConnectAccountId: "acct_test_connected",
       cardholderId: "ich_test_cardholder",
       fetchImpl,
       now: () => NOW
@@ -84,39 +75,36 @@ describe("StripeIssuingSandboxClient", () => {
 
     const issued = await client.mintCard(scope);
     const create = calls[0];
-    const retrieve = calls[1];
     const createBody = new URLSearchParams(create.init?.body as URLSearchParams);
 
     expect(issued).toMatchObject({
       record: {
+        account_id: "account_local",
         card_id: "card_ic_test_123",
         task_id: "task_stripe_mint",
         issuer_card_ref: "ic_test_123",
         status: "active",
         minted_at: "2026-08-01T00:00:00.000Z"
       },
-      card_details: {
-        number: "stripe_expanded_card_number",
-        cvc: "stripe_expanded_cvc",
-        last4: "4242"
-      }
+      card_details: null
     });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(create.url).toBe("https://api.stripe.com/v1/issuing/cards");
     expect(headerValue(create.init?.headers, "Idempotency-Key")).toBe("zerodom-card-task_stripe_mint");
     expect(headerValue(create.init?.headers, "Content-Type")).toBe("application/x-www-form-urlencoded");
     expect(headerValue(create.init?.headers, "Authorization")).toBe(
       `Basic ${Buffer.from("sk_test_zerodom:").toString("base64")}`
     );
+    expect(headerValue(create.init?.headers, "Stripe-Account")).toBe("acct_test_connected");
     expect(createBody.get("cardholder")).toBe("ich_test_cardholder");
     expect(createBody.get("currency")).toBe("usd");
     expect(createBody.get("type")).toBe("virtual");
     expect(createBody.get("status")).toBe("active");
+    expect(createBody.get("metadata[zerodom_caller_id]")).toBe("local-agent");
     expect(createBody.get("spending_controls[allowed_categories][0]")).toBe("computer_software_stores");
     expect(createBody.get("spending_controls[spending_limits][0][amount]")).toBe("5000");
     expect(createBody.get("spending_controls[spending_limits][0][interval]")).toBe("per_authorization");
     expect(createBody.get("lifecycle_controls[cancel_after][payment_count]")).toBe("1");
-    expect(retrieve.url).toBe("https://api.stripe.com/v1/issuing/cards/ic_test_123?expand%5B0%5D=number&expand%5B1%5D=cvc");
   });
 
   it("simulates a Stripe Issuing test-helper authorization with merchant data", async () => {
@@ -137,6 +125,7 @@ describe("StripeIssuingSandboxClient", () => {
     });
     const client = new StripeIssuingSandboxClient({
       stripeSecretKey: "sk_test_zerodom",
+      stripeConnectAccountId: "acct_test_connected",
       cardholderId: "ich_test_cardholder",
       fetchImpl
     });
@@ -151,6 +140,7 @@ describe("StripeIssuingSandboxClient", () => {
     const body = new URLSearchParams(calls[0].init?.body as URLSearchParams);
 
     expect(calls[0].url).toBe("https://api.stripe.com/v1/test_helpers/issuing/authorizations");
+    expect(headerValue(calls[0].init?.headers, "Stripe-Account")).toBe("acct_test_connected");
     expect(body.get("card")).toBe("ic_test_123");
     expect(body.get("amount")).toBe("6000");
     expect(body.get("currency")).toBe("usd");
@@ -181,6 +171,7 @@ describe("StripeIssuingSandboxClient", () => {
     });
     const client = new StripeIssuingSandboxClient({
       stripeSecretKey: "sk_test_zerodom",
+      stripeConnectAccountId: "acct_test_connected",
       cardholderId: "ich_test_cardholder",
       fetchImpl
     });
@@ -190,6 +181,7 @@ describe("StripeIssuingSandboxClient", () => {
 
     expect(calls[0].url).toBe("https://api.stripe.com/v1/issuing/cards/ic_test_123");
     expect(calls[0].init?.method).toBe("POST");
+    expect(headerValue(calls[0].init?.headers, "Stripe-Account")).toBe("acct_test_connected");
     expect(body.get("status")).toBe("inactive");
   });
 });

@@ -47,6 +47,7 @@ describe("TaskScope validation", () => {
     expect(() =>
       validateTaskScope(
         {
+          account_id: "account_scope_test",
           task_id: "task_zero_cap",
           max_amount: 0,
           currency: "usd",
@@ -63,6 +64,7 @@ describe("TaskScope validation", () => {
     expect(() =>
       validateTaskScope(
         {
+          account_id: "account_scope_test",
           task_id: "task_missing_expiry",
           max_amount: 1_000,
           currency: "usd",
@@ -75,6 +77,7 @@ describe("TaskScope validation", () => {
     expect(() =>
       validateTaskScope(
         {
+          account_id: "account_scope_test",
           task_id: "task_missing_merchant",
           max_amount: 1_000,
           currency: "usd",

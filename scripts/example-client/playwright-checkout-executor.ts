@@ -1,56 +1,5 @@
-import type { CardIssuerClient } from "./issuer.js";
-import type { CardRecord, IssuedCard, TransactionAttempt, TransactionRequest } from "./models.js";
-
-export interface CheckoutStep extends Omit<TransactionRequest, "card_id"> {
-  label: string;
-}
-
-export interface ScriptedExecutionResult {
-  card: CardRecord;
-  attempts: TransactionAttempt[];
-}
-
-export class AgentExecutionError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "AgentExecutionError";
-  }
-}
-
-export class ScriptedAgentExecutor {
-  constructor(private readonly issuer: CardIssuerClient) {}
-
-  runCheckout({ cardId, steps, now = new Date() }: { cardId: string; steps: CheckoutStep[]; now?: Date }): ScriptedExecutionResult {
-    const attempts: TransactionAttempt[] = [];
-
-    for (const step of steps) {
-      const attempt = this.issuer.authorize(
-        {
-          card_id: cardId,
-          attempted_amount: step.attempted_amount,
-          attempted_merchant: step.attempted_merchant,
-          attempted_merchant_category: step.attempted_merchant_category
-        },
-        now
-      );
-      attempts.push(attempt);
-    }
-
-    return {
-      card: this.issuer.getStatusAndHistory(cardId).card,
-      attempts
-    };
-  }
-
-  simulateProcessDeath({ afterMintedCardId, at }: { afterMintedCardId: string; at: Date }) {
-    const expired = this.issuer.expireCards(at);
-    const card = expired.find((record) => record.card_id === afterMintedCardId) ?? this.issuer.getStatusAndHistory(afterMintedCardId).card;
-    if (card.status === "active") {
-      throw new AgentExecutionError(`card ${afterMintedCardId} remained active after simulated process death cleanup`);
-    }
-    return card;
-  }
-}
+import type { CardIssuerClient } from "../../src/core/issuer.js";
+import type { CardRecord, IssuedCard, TransactionAttempt } from "../../src/core/models.js";
 
 export interface PlaywrightPageLike {
   locator(selector: string): {
@@ -84,6 +33,13 @@ export interface PlaywrightCheckoutResult {
   card: CardRecord;
   attempt: TransactionAttempt;
   telemetry: PlaywrightCheckoutTelemetry[];
+}
+
+export class ExampleCheckoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ExampleCheckoutError";
+  }
 }
 
 export class PlaywrightCheckoutExecutor {
@@ -127,6 +83,7 @@ export class PlaywrightCheckoutExecutor {
 
     const attempt = this.issuer.authorize(
       {
+        account_id: issuedCard.record.account_id,
         card_id: issuedCard.record.card_id,
         attempted_amount: attemptedAmount,
         attempted_merchant: attemptedMerchant,
@@ -142,7 +99,7 @@ export class PlaywrightCheckoutExecutor {
     });
 
     return {
-      card: this.issuer.getStatusAndHistory(issuedCard.record.card_id).card,
+      card: this.issuer.getStatusAndHistory(issuedCard.record.card_id, issuedCard.record.account_id).card,
       attempt,
       telemetry
     };
@@ -154,7 +111,7 @@ async function readMinorAmount(page: PlaywrightPageLike, selector: string) {
   const raw = (await locator.getAttribute("data-amount-minor")) ?? (await locator.textContent());
   const parsed = Number.parseInt(raw?.replace(/[^\d]/g, "") ?? "", 10);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new AgentExecutionError(`checkout amount at ${selector} must be a positive minor-unit integer`);
+    throw new ExampleCheckoutError(`checkout amount at ${selector} must be a positive minor-unit integer`);
   }
   return parsed;
 }
@@ -164,7 +121,7 @@ async function readTextOrData(page: PlaywrightPageLike, selector: string, dataNa
   const raw = (await locator.getAttribute(`data-${dataName}`)) ?? (await locator.textContent());
   const value = raw?.trim();
   if (!value) {
-    throw new AgentExecutionError(`checkout field ${selector} did not expose ${dataName}`);
+    throw new ExampleCheckoutError(`checkout field ${selector} did not expose ${dataName}`);
   }
   return value;
 }

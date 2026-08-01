@@ -1,4 +1,4 @@
-import { InMemoryAuditLog, statusFromOutcome } from "./audit-log.js";
+import { InMemoryAuditLog, type AuditLog, statusFromOutcome } from "./audit-log.js";
 import { verifyTransactionAttempt } from "./constraint-verifier.js";
 import type { CardRecord, IssuedCard, SandboxCardDetails, TaskScope, TransactionAttempt, TransactionRequest } from "./models.js";
 import { validateTaskScope } from "./scope.js";
@@ -13,16 +13,16 @@ export class CardIssueError extends Error {
 export interface CardIssuerClient {
   mintCard(scope: TaskScope, now?: Date): IssuedCard;
   authorize(request: TransactionRequest, now?: Date): TransactionAttempt;
-  getStatusAndHistory(cardId: string): { card: CardRecord; attempts: TransactionAttempt[] };
-  getScopeForCard(cardId: string): TaskScope;
-  listCards(): CardRecord[];
-  listActiveCards(): CardRecord[];
-  expireCards(now?: Date): CardRecord[];
-  revokeCard(cardId: string, reason: string, now?: Date): CardRecord;
+  getStatusAndHistory(cardId: string, accountId: string): { card: CardRecord; attempts: TransactionAttempt[] };
+  getScopeForCard(cardId: string, accountId: string): TaskScope;
+  listCards(accountId: string): CardRecord[];
+  listActiveCards(accountId: string): CardRecord[];
+  expireCards(accountId: string, now?: Date): CardRecord[];
+  revokeCard(cardId: string, accountId: string, reason: string, now?: Date): CardRecord;
 }
 
 export class SandboxCardIssuerClient implements CardIssuerClient {
-  readonly auditLog: InMemoryAuditLog;
+  readonly auditLog: AuditLog;
   #scopes = new Map<string, TaskScope>();
   #cards = new Map<string, CardRecord>();
   #cardDetails = new Map<string, SandboxCardDetails>();
@@ -30,13 +30,14 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
   #taskCards = new Map<string, string>();
   #sequence = 0;
 
-  constructor({ auditLog = new InMemoryAuditLog() }: { auditLog?: InMemoryAuditLog } = {}) {
+  constructor({ auditLog = new InMemoryAuditLog() }: { auditLog?: AuditLog } = {}) {
     this.auditLog = auditLog;
   }
 
   mintCard(scope: TaskScope, now = new Date()): IssuedCard {
     validateTaskScope(scope, now);
-    const existingCardId = this.#taskCards.get(scope.task_id);
+    const taskKey = accountTaskKey(scope.account_id, scope.task_id);
+    const existingCardId = this.#taskCards.get(taskKey);
     if (existingCardId) {
       throw new CardIssueError(`task ${scope.task_id} already has card ${existingCardId}`);
     }
@@ -44,6 +45,7 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
     this.#sequence += 1;
     const cardId = `card_${String(this.#sequence).padStart(6, "0")}`;
     const record: CardRecord = {
+      account_id: scope.account_id,
       card_id: cardId,
       task_id: scope.task_id,
       issuer_card_ref: `sandbox_issuing_${cardId}`,
@@ -52,11 +54,11 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
     };
     const details = makeSandboxCardDetails(this.#sequence, now);
 
-    this.#scopes.set(scope.task_id, structuredClone(scope));
+    this.#scopes.set(taskKey, structuredClone(scope));
     this.#cards.set(cardId, record);
     this.#cardDetails.set(cardId, details);
     this.#attempts.set(cardId, []);
-    this.#taskCards.set(scope.task_id, cardId);
+    this.#taskCards.set(taskKey, cardId);
     this.auditLog.recordScopeDefined(scope, now);
     this.auditLog.recordCardMinted(scope, record, now);
 
@@ -69,7 +71,10 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
 
   authorize(request: TransactionRequest, now = new Date()): TransactionAttempt {
     const card = this.#mustGetCard(request.card_id);
-    const scope = this.#mustGetScope(card.task_id);
+    if (request.account_id !== card.account_id) {
+      throw new CardIssueError(`card ${card.card_id} does not belong to account ${request.account_id}`);
+    }
+    const scope = this.#mustGetScope(card.account_id, card.task_id);
     const priorAttempts = this.#attempts.get(card.card_id) ?? [];
     const decision = verifyTransactionAttempt({
       scope,
@@ -80,6 +85,7 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
     });
     const attempt: TransactionAttempt = {
       ...request,
+      account_id: card.account_id,
       timestamp: now.toISOString(),
       result: decision.result,
       reason: decision.reason
@@ -104,23 +110,24 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
     return structuredClone(attempt);
   }
 
-  getStatusAndHistory(cardId: string) {
+  getStatusAndHistory(cardId: string, accountId: string) {
+    const card = this.#mustGetCardForAccount(cardId, accountId);
     return {
-      card: structuredClone(this.#mustGetCard(cardId)),
+      card: structuredClone(card),
       attempts: (this.#attempts.get(cardId) ?? []).map((attempt) => structuredClone(attempt))
     };
   }
 
-  getScopeForCard(cardId: string) {
-    const card = this.#mustGetCard(cardId);
-    return structuredClone(this.#mustGetScope(card.task_id));
+  getScopeForCard(cardId: string, accountId: string) {
+    const card = this.#mustGetCardForAccount(cardId, accountId);
+    return structuredClone(this.#mustGetScope(card.account_id, card.task_id));
   }
 
-  expireCards(now = new Date()) {
+  expireCards(accountId: string, now = new Date()) {
     const expired: CardRecord[] = [];
     for (const card of this.#cards.values()) {
-      if (card.status !== "active") continue;
-      const scope = this.#mustGetScope(card.task_id);
+      if (card.account_id !== accountId || card.status !== "active") continue;
+      const scope = this.#mustGetScope(card.account_id, card.task_id);
       if (new Date(scope.expires_at).getTime() <= now.getTime()) {
         card.status = "expired";
         this.auditLog.recordCardExpired(scope, card, "task expiry window passed", now);
@@ -130,23 +137,28 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
     return expired;
   }
 
-  revokeCard(cardId: string, reason: string, now = new Date()) {
-    const card = this.#mustGetCard(cardId);
-    const scope = this.#mustGetScope(card.task_id);
+  revokeCard(cardId: string, accountId: string, reason: string, now = new Date()) {
+    const card = this.#mustGetCardForAccount(cardId, accountId);
+    const scope = this.#mustGetScope(card.account_id, card.task_id);
     card.status = "revoked";
     this.auditLog.recordCardRevoked(scope, card, reason, now);
     return structuredClone(card);
   }
 
-  listActiveCards() {
-    return [...this.#cards.values()].filter((card) => card.status === "active").map((card) => structuredClone(card));
+  listActiveCards(accountId: string) {
+    return [...this.#cards.values()]
+      .filter((card) => card.account_id === accountId && card.status === "active")
+      .map((card) => structuredClone(card));
   }
 
-  listCards() {
-    return [...this.#cards.values()].map((card) => structuredClone(card));
+  listCards(accountId: string) {
+    return [...this.#cards.values()]
+      .filter((card) => card.account_id === accountId)
+      .map((card) => structuredClone(card));
   }
 
-  getCardDetails(cardId: string) {
+  getCardDetails(cardId: string, accountId: string) {
+    this.#mustGetCardForAccount(cardId, accountId);
     const details = this.#cardDetails.get(cardId);
     if (!details) {
       throw new CardIssueError(`unknown card ${cardId}`);
@@ -162,13 +174,25 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
     return card;
   }
 
-  #mustGetScope(taskId: string) {
-    const scope = this.#scopes.get(taskId);
+  #mustGetCardForAccount(cardId: string, accountId: string) {
+    const card = this.#mustGetCard(cardId);
+    if (card.account_id !== accountId) {
+      throw new CardIssueError(`card ${cardId} does not belong to account ${accountId}`);
+    }
+    return card;
+  }
+
+  #mustGetScope(accountId: string, taskId: string) {
+    const scope = this.#scopes.get(accountTaskKey(accountId, taskId));
     if (!scope) {
       throw new CardIssueError(`unknown task scope ${taskId}`);
     }
     return scope;
   }
+}
+
+function accountTaskKey(accountId: string, taskId: string) {
+  return `${accountId}:${taskId}`;
 }
 
 function makeSandboxCardDetails(sequence: number, now: Date): SandboxCardDetails {

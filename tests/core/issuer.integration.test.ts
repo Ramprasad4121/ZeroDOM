@@ -19,6 +19,7 @@ describe("SandboxCardIssuerClient integration", () => {
 
     const approved = issuer.authorize(
       {
+        account_id: issued.record.account_id,
         card_id: issued.record.card_id,
         attempted_amount: 4_999,
         attempted_merchant: "example shop"
@@ -27,6 +28,7 @@ describe("SandboxCardIssuerClient integration", () => {
     );
     const reused = issuer.authorize(
       {
+        account_id: issued.record.account_id,
         card_id: issued.record.card_id,
         attempted_amount: 1_00,
         attempted_merchant: "example shop"
@@ -36,7 +38,7 @@ describe("SandboxCardIssuerClient integration", () => {
 
     expect(approved.result).toBe("approved");
     expect(reused.result).toBe("declined_reused");
-    expect(issuer.getStatusAndHistory(issued.record.card_id).card.status).toBe("used");
+    expect(issuer.getStatusAndHistory(issued.record.card_id, issued.record.account_id).card.status).toBe("used");
   });
 
   it("declines attempts above cap with a specific reason and keeps the card active", () => {
@@ -56,6 +58,7 @@ describe("SandboxCardIssuerClient integration", () => {
 
     const attempt = issuer.authorize(
       {
+        account_id: issued.record.account_id,
         card_id: issued.record.card_id,
         attempted_amount: 1_001,
         attempted_merchant: "Example Shop"
@@ -65,7 +68,7 @@ describe("SandboxCardIssuerClient integration", () => {
 
     expect(attempt.result).toBe("declined_amount");
     expect(attempt.reason).toContain("exceeds cap");
-    expect(issuer.getStatusAndHistory(issued.record.card_id).card.status).toBe("active");
+    expect(issuer.getStatusAndHistory(issued.record.card_id, issued.record.account_id).card.status).toBe("active");
   });
 
   it("declines wrong merchant and wrong merchant category with specific reasons", () => {
@@ -98,6 +101,7 @@ describe("SandboxCardIssuerClient integration", () => {
     expect(
       issuer.authorize(
         {
+          account_id: nameLocked.record.account_id,
           card_id: nameLocked.record.card_id,
           attempted_amount: 500,
           attempted_merchant: "Other Shop"
@@ -108,6 +112,7 @@ describe("SandboxCardIssuerClient integration", () => {
     expect(
       issuer.authorize(
         {
+          account_id: categoryLocked.record.account_id,
           card_id: categoryLocked.record.card_id,
           attempted_amount: 500,
           attempted_merchant: "Example Cafe",
@@ -136,6 +141,7 @@ describe("SandboxCardIssuerClient integration", () => {
 
     const attempt = issuer.authorize(
       {
+        account_id: issued.record.account_id,
         card_id: issued.record.card_id,
         attempted_amount: 500,
         attempted_merchant: "Example Shop"
@@ -144,7 +150,7 @@ describe("SandboxCardIssuerClient integration", () => {
     );
 
     expect(attempt.result).toBe("declined_expired");
-    expect(issuer.getStatusAndHistory(issued.record.card_id).card.status).toBe("expired");
+    expect(issuer.getStatusAndHistory(issued.record.card_id, issued.record.account_id).card.status).toBe("expired");
   });
 
   it("exposes an audit trail queryable by task, card, and outcome", () => {
@@ -153,6 +159,7 @@ describe("SandboxCardIssuerClient integration", () => {
     const scope = defineTaskScope({
       taskDescription: "Audit story",
       taskId: "task_audit",
+      callerId: "claude-agent",
       maxAmount: 1_000,
       currency: "usd",
       merchantLock: { type: "merchant_name", value: "Example Shop" },
@@ -162,6 +169,7 @@ describe("SandboxCardIssuerClient integration", () => {
     const issued = issuer.mintCard(scope, NOW);
     issuer.authorize(
       {
+        account_id: issued.record.account_id,
         card_id: issued.record.card_id,
         attempted_amount: 1_001,
         attempted_merchant: "Example Shop"
@@ -169,13 +177,15 @@ describe("SandboxCardIssuerClient integration", () => {
       NOW
     );
 
-    expect(auditLog.byTask(scope.task_id).map((event) => event.type)).toEqual([
+    expect(auditLog.byTask(scope.account_id, scope.task_id).map((event) => event.type)).toEqual([
       "scope_defined",
       "card_minted",
       "transaction_attempt"
     ]);
-    expect(auditLog.byCard(issued.record.card_id)).toHaveLength(2);
-    expect(auditLog.byOutcome("declined_amount")).toHaveLength(1);
-    expect(reconstructTaskStory(auditLog, scope.task_id)).toHaveLength(3);
+    expect(auditLog.byCard(scope.account_id, issued.record.card_id)).toHaveLength(2);
+    expect(auditLog.byOutcome(scope.account_id, "declined_amount")).toHaveLength(1);
+    expect(auditLog.byCaller(scope.account_id, "claude-agent")).toHaveLength(3);
+    expect(auditLog.byCaller(scope.account_id, "other-agent")).toHaveLength(0);
+    expect(reconstructTaskStory(auditLog, scope.account_id, scope.task_id)).toHaveLength(3);
   });
 });

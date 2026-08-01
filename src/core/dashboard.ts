@@ -1,10 +1,12 @@
-import type { InMemoryAuditLog } from "./audit-log.js";
+import type { AuditLog } from "./audit-log.js";
 import type { CardIssuerClient } from "./issuer.js";
 import type { AuditEvent, CardRecord, TaskScope, TransactionAttempt } from "./models.js";
 
 export interface DashboardCardSummary {
+  account_id: string;
   card_id: string;
   task_id: string;
+  caller_id: string;
   issuer_card_ref: string;
   status: CardRecord["status"];
   minted_at: string;
@@ -16,6 +18,7 @@ export interface DashboardCardSummary {
 }
 
 export interface DashboardSnapshot {
+  account_id: string;
   generated_at: string;
   active_cards: DashboardCardSummary[];
   all_cards: DashboardCardSummary[];
@@ -23,27 +26,30 @@ export interface DashboardSnapshot {
 }
 
 export function buildDashboardSnapshot({
+  accountId,
   issuer,
   auditLog,
   now = new Date(),
   expireBeforeRead = true
 }: {
+  accountId: string;
   issuer: CardIssuerClient;
-  auditLog: InMemoryAuditLog;
+  auditLog: AuditLog;
   now?: Date;
   expireBeforeRead?: boolean;
 }): DashboardSnapshot {
   if (expireBeforeRead) {
-    issuer.expireCards(now);
+    issuer.expireCards(accountId, now);
   }
 
-  const allCards = issuer.listCards().map((card) => summarizeCard(issuer, card));
+  const allCards = issuer.listCards(accountId).map((card) => summarizeCard(issuer, card));
 
   return {
+    account_id: accountId,
     generated_at: now.toISOString(),
     active_cards: allCards.filter((card) => card.status === "active"),
     all_cards: allCards,
-    audit_events: auditLog.all()
+    audit_events: auditLog.byAccount(accountId)
   };
 }
 
@@ -60,7 +66,7 @@ export function formatDashboardSnapshot(snapshot: DashboardSnapshot) {
   } else {
     for (const card of snapshot.active_cards) {
       lines.push(
-        `- ${card.card_id} task=${card.task_id} status=${card.status} remaining=${formatMinor(card.remaining_amount, card.scope.currency)} lock=${card.scope.merchant_lock.type}:${card.scope.merchant_lock.value}`
+        `- ${card.card_id} task=${card.task_id} caller=${card.caller_id} status=${card.status} remaining=${formatMinor(card.remaining_amount, card.scope.currency)} lock=${card.scope.merchant_lock.type}:${card.scope.merchant_lock.value}`
       );
     }
   }
@@ -72,7 +78,7 @@ export function formatDashboardSnapshot(snapshot: DashboardSnapshot) {
     for (const event of snapshot.audit_events) {
       const result = event.transaction ? ` result=${event.transaction.result}` : "";
       const card = event.card_id ? ` card=${event.card_id}` : "";
-      lines.push(`- ${event.timestamp} ${event.type} task=${event.task_id}${card}${result}`);
+      lines.push(`- ${event.timestamp} ${event.type} task=${event.task_id} caller=${event.caller_id}${card}${result}`);
     }
   }
 
@@ -80,8 +86,8 @@ export function formatDashboardSnapshot(snapshot: DashboardSnapshot) {
 }
 
 function summarizeCard(issuer: CardIssuerClient, card: CardRecord): DashboardCardSummary {
-  const scope = issuer.getScopeForCard(card.card_id);
-  const history = issuer.getStatusAndHistory(card.card_id);
+  const scope = issuer.getScopeForCard(card.card_id, card.account_id);
+  const history = issuer.getStatusAndHistory(card.card_id, card.account_id);
   const approvedAmount = history.attempts
     .filter((attempt) => attempt.result === "approved")
     .reduce((total, attempt) => total + attempt.attempted_amount, 0);
@@ -89,6 +95,7 @@ function summarizeCard(issuer: CardIssuerClient, card: CardRecord): DashboardCar
 
   return {
     ...card,
+    caller_id: scope.caller_id,
     scope,
     approved_amount: approvedAmount,
     remaining_amount: Math.max(0, scope.max_amount - approvedAmount),

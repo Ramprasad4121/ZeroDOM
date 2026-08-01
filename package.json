@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "ZeroDOM: scoped autonomous payments for browser agents, with x402 and sandbox virtual-card demos.",
+  "description": "ZeroDOM: agent-agnostic scoped autonomous payments with sandbox virtual-card infrastructure.",
   "bin": {
     "zerodome": "./bin/zerodome.js"
   },
@@ -15,6 +15,10 @@
     "test-server": "node scripts/test-server.js",
     "card-demo": "node --import tsx scripts/card-sandbox-demo.ts",
     "checkout-harness": "node --import tsx scripts/playwright-checkout-harness.ts",
+    "audit-demo": "node --import tsx scripts/audit-log-demo.ts",
+    "integration-demo": "node --import tsx scripts/integration-demo.ts",
+    "integration-server": "node --import tsx scripts/integration-server.ts",
+    "mcp-server": "node --import tsx scripts/mcp-server.ts",
     "stripe-sandbox-smoke": "node --import tsx scripts/stripe-sandbox-smoke.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

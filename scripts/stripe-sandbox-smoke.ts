@@ -1,15 +1,17 @@
 import { StripeIssuingSandboxClient, defineTaskScope } from "../src/core/index.js";
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+const stripeConnectAccountId = process.env.STRIPE_CONNECT_ACCOUNT_ID;
 const cardholderId = process.env.STRIPE_ISSUING_CARDHOLDER_ID;
 
-if (!stripeSecretKey || !cardholderId) {
-  console.error("Missing STRIPE_SECRET_KEY=sk_test_... or STRIPE_ISSUING_CARDHOLDER_ID=ich_...");
+if (!stripeSecretKey || !stripeConnectAccountId || !cardholderId) {
+  console.error("Missing STRIPE_SECRET_KEY=sk_test_..., STRIPE_CONNECT_ACCOUNT_ID=acct_..., or STRIPE_ISSUING_CARDHOLDER_ID=ich_...");
   process.exit(1);
 }
 
 const client = new StripeIssuingSandboxClient({
   stripeSecretKey,
+  stripeConnectAccountId,
   cardholderId
 });
 
@@ -18,6 +20,7 @@ const merchantCategory = process.env.ZERODOM_STRIPE_MERCHANT_CATEGORY ?? "comput
 const approvedScope = defineTaskScope({
   taskDescription: "Stripe Issuing sandbox in-scope authorization smoke test",
   taskId: `stripe_smoke_approved_${Date.now()}`,
+  callerId: "stripe-smoke-agent",
   maxAmount: 5_000,
   currency: "usd",
   merchantLock: { type: "merchant_category", value: merchantCategory },
@@ -27,6 +30,7 @@ const approvedScope = defineTaskScope({
 const declinedScope = defineTaskScope({
   taskDescription: "Stripe Issuing sandbox over-cap decline smoke test",
   taskId: `stripe_smoke_declined_${Date.now()}`,
+  callerId: "stripe-smoke-agent",
   maxAmount: 2_000,
   currency: "usd",
   merchantLock: { type: "merchant_category", value: merchantCategory },
@@ -58,9 +62,9 @@ try {
 
   console.log("ZeroDOM Stripe Issuing sandbox smoke");
   console.log("------------------------------------");
-  console.log(`approved_card=${approvedCard.record.issuer_card_ref} last4=${approvedCard.card_details.last4}`);
+  console.log(`approved_card=${approvedCard.record.issuer_card_ref}`);
   console.log(`approved_authorization=${approvedAuthorization.id} approved=${approvedAuthorization.approved}`);
-  console.log(`declined_card=${declinedCard.record.issuer_card_ref} last4=${declinedCard.card_details.last4}`);
+  console.log(`declined_card=${declinedCard.record.issuer_card_ref}`);
   console.log(`declined_authorization=${declinedAuthorization.id} approved=${declinedAuthorization.approved}`);
 } finally {
   for (const cardRef of mintedCardRefs) {

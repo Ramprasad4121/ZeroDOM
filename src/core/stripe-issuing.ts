@@ -1,4 +1,4 @@
-import type { IssuedCard, SandboxCardDetails, TaskScope, TransactionRequest } from "./models.js";
+import type { IssuedCard, TaskScope } from "./models.js";
 import { validateTaskScope } from "./scope.js";
 
 export class StripeSandboxConfigError extends Error {
@@ -16,6 +16,7 @@ export interface StripeCardCreateOptions {
 
 export interface StripeSandboxClientOptions {
   stripeSecretKey: string;
+  stripeConnectAccountId: string;
   cardholderId: string;
   fetchImpl?: FetchLike;
   baseUrl?: string;
@@ -43,8 +44,11 @@ export interface StripeVirtualCardCreateParams {
   };
 }
 
-export interface StripeTestAuthorizationRequest extends Omit<TransactionRequest, "card_id"> {
+export interface StripeTestAuthorizationRequest {
   issuer_card_ref: string;
+  attempted_amount: number;
+  attempted_merchant: string;
+  attempted_merchant_category?: string;
   currency: string;
 }
 
@@ -56,6 +60,16 @@ export interface StripeTestAuthorizationResult {
   status: string;
   merchant_name?: string;
   merchant_category?: string;
+}
+
+/**
+ * Stripe omits virtual-card PAN/CVC in test mode. The local SandboxCardIssuerClient
+ * is the only adapter that returns disposable card details for example-client tests.
+ */
+export interface StripeIssuedCard {
+  record: IssuedCard["record"];
+  scope: TaskScope;
+  card_details: null;
 }
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
@@ -97,6 +111,7 @@ export function buildStripeVirtualCardCreateParams(
     status: "active",
     metadata: {
       zerodom_task_id: scope.task_id,
+      zerodom_caller_id: scope.caller_id,
       zerodom_expires_at: scope.expires_at
     },
     spending_controls: {
@@ -121,6 +136,7 @@ export function buildStripeVirtualCardCreateParams(
 
 export class StripeIssuingSandboxClient {
   readonly #stripeSecretKey: string;
+  readonly #stripeConnectAccountId: string;
   readonly #cardholderId: string;
   readonly #fetchImpl: FetchLike;
   readonly #baseUrl: string;
@@ -128,23 +144,26 @@ export class StripeIssuingSandboxClient {
 
   constructor({
     stripeSecretKey,
+    stripeConnectAccountId,
     cardholderId,
     fetchImpl = fetch,
     baseUrl = "https://api.stripe.com/v1",
     now = () => new Date()
   }: StripeSandboxClientOptions) {
     assertStripeSandboxKey(stripeSecretKey);
+    assertStripeConnectAccountId(stripeConnectAccountId);
     if (!cardholderId) {
       throw new StripeSandboxConfigError("Stripe Issuing cardholder ID is required");
     }
     this.#stripeSecretKey = stripeSecretKey;
+    this.#stripeConnectAccountId = stripeConnectAccountId;
     this.#cardholderId = cardholderId;
     this.#fetchImpl = fetchImpl;
     this.#baseUrl = baseUrl.replace(/\/+$/, "");
     this.#now = now;
   }
 
-  async mintCard(scope: TaskScope): Promise<IssuedCard> {
+  async mintCard(scope: TaskScope): Promise<StripeIssuedCard> {
     const now = this.#now();
     const params = buildStripeVirtualCardCreateParams(scope, {
       cardholderId: this.#cardholderId,
@@ -156,10 +175,9 @@ export class StripeIssuingSandboxClient {
       body: encodeFormParams(params),
       idempotencyKey: `zerodom-card-${scope.task_id}`
     });
-    const expanded = await this.retrieveCardDetails(card.id);
-
     return {
       record: {
+        account_id: scope.account_id,
         card_id: `card_${card.id}`,
         task_id: scope.task_id,
         issuer_card_ref: card.id,
@@ -167,28 +185,7 @@ export class StripeIssuingSandboxClient {
         minted_at: new Date((card.created ?? Math.floor(now.getTime() / 1000)) * 1000).toISOString()
       },
       scope,
-      card_details: expanded
-    };
-  }
-
-  async retrieveCardDetails(issuerCardRef: string): Promise<SandboxCardDetails> {
-    const card = await this.#request<StripeIssuingCardResponse>(`/issuing/cards/${encodeURIComponent(issuerCardRef)}`, {
-      method: "GET",
-      query: {
-        "expand[0]": "number",
-        "expand[1]": "cvc"
-      }
-    });
-    if (!card.number || !card.cvc) {
-      throw new StripeSandboxConfigError("Stripe did not return expanded sandbox card number and cvc");
-    }
-
-    return {
-      number: card.number,
-      cvc: card.cvc,
-      exp_month: card.exp_month,
-      exp_year: card.exp_year,
-      last4: card.last4
+      card_details: null
     };
   }
 
@@ -244,7 +241,8 @@ export class StripeIssuingSandboxClient {
     }
 
     const headers = new Headers({
-      Authorization: `Basic ${Buffer.from(`${this.#stripeSecretKey}:`).toString("base64")}`
+      Authorization: `Basic ${Buffer.from(`${this.#stripeSecretKey}:`).toString("base64")}`,
+      "Stripe-Account": this.#stripeConnectAccountId
     });
     if (body) {
       headers.set("Content-Type", "application/x-www-form-urlencoded");
@@ -314,4 +312,10 @@ interface StripeIssuingAuthorizationResponse {
 function stripeCardStatusToRecordStatus(status: StripeIssuingCardResponse["status"]) {
   if (status === "active") return "active";
   return "revoked";
+}
+
+function assertStripeConnectAccountId(stripeConnectAccountId: string) {
+  if (!stripeConnectAccountId || !stripeConnectAccountId.startsWith("acct_")) {
+    throw new StripeSandboxConfigError("STRIPE_CONNECT_ACCOUNT_ID=acct_... is required for Stripe Connect sandbox mode");
+  }
 }

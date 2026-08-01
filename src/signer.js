@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { buyerWallet, encodeBase64Json, signPaymentRequired } from "./payment.js";
 
-export function createDisposableWallet(privateKey = process.env.DEMO_BUYER_PRIVATE_KEY) {
+export function createDisposableWallet(privateKey) {
   return privateKey ? new ethers.Wallet(privateKey) : ethers.Wallet.createRandom();
 }
 

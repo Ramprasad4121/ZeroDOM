@@ -1,5 +1,39 @@
 # ZeroDOM Progress
 
+## 2026-08-01 12:42 IST
+
+Completed the Account & Funding Layer and made the REST/MCP boundary
+account-authenticated. `SandboxAccountStore` now hashes per-account sandbox API
+keys, reserves only the caller's funded balance before a mint, settles an
+approved authorization, and releases reservations on expiry. The issuer, audit
+log, dashboard, and integration service all require `account_id` at their data
+boundary; two accounts can safely use the same task ID.
+
+Updated the Stripe sandbox adapter to send `Stripe-Account` on every request
+and corrected an important test-mode limitation: Stripe does not expose
+virtual-card PAN/CVC in test mode, so the external adapter never claims to
+retrieve it. The local non-chargeable sandbox remains the only source of demo
+card details for the optional example client.
+
+Verified:
+- `npm run typecheck`
+- `npm test` (31 tests, including unfunded-account, cross-account isolation,
+  same-task-ID tenant isolation, and expiry/refund coverage)
+- `npm run integration-demo`
+- `npm run card-demo`
+- `npm run audit-demo`
+- `npm run mcp-server` fails closed without an MCP account credential
+- `node bin/zerodome.js stripe-smoke` fails closed without all Stripe sandbox
+  variables
+
+Still open:
+- A durable production account repository, Stripe Connect onboarding callback,
+  and server-side balance verification replace the in-memory sandbox layer.
+- A real Stripe test account/cardholder and an explicitly chosen sandbox
+  checkout target are required for the live readiness tests.
+- No live-mode Stripe credentials, real card data, or real purchases have been
+  used.
+
 ## 2026-08-01 11:50 IST
 
 Built the Playwright checkout executor boundary. Added `PlaywrightCheckoutExecutor`, selector-driven checkout form filling, merchant/amount extraction, issuer authorization, and redacted telemetry that includes `last4` but never full card number or CVC. Added a deterministic in-memory browser harness via `npm run checkout-harness` and `zerodome checkout-harness`.

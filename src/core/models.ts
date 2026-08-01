@@ -1,5 +1,17 @@
 export type CurrencyCode = Lowercase<string>;
 
+export type AccountStatus = "active" | "suspended";
+
+export interface Account {
+  account_id: string;
+  stripe_connect_id: string;
+  api_key_hash: string;
+  created_at: string;
+  status: AccountStatus;
+  currency: CurrencyCode;
+  available_balance: number;
+}
+
 export type MerchantLock =
   | {
       type: "merchant_name";
@@ -11,7 +23,9 @@ export type MerchantLock =
     };
 
 export interface TaskScope {
+  account_id: string;
   task_id: string;
+  caller_id: string;
   max_amount: number;
   currency: CurrencyCode;
   merchant_lock: MerchantLock;
@@ -22,6 +36,7 @@ export interface TaskScope {
 export type CardStatus = "active" | "expired" | "used" | "revoked";
 
 export interface CardRecord {
+  account_id: string;
   card_id: string;
   task_id: string;
   issuer_card_ref: string;
@@ -45,6 +60,7 @@ export type TransactionResult =
   | "declined_reused";
 
 export interface TransactionAttempt {
+  account_id: string;
   card_id: string;
   attempted_amount: number;
   attempted_merchant: string;
@@ -55,6 +71,7 @@ export interface TransactionAttempt {
 }
 
 export interface TransactionRequest {
+  account_id: string;
   card_id: string;
   attempted_amount: number;
   attempted_merchant: string;
@@ -72,7 +89,9 @@ export type AuditEventType = "scope_defined" | "card_minted" | "transaction_atte
 export interface AuditEvent {
   event_id: string;
   type: AuditEventType;
+  account_id: string;
   task_id: string;
+  caller_id: string;
   card_id?: string;
   timestamp: string;
   scope?: TaskScope;
@@ -83,6 +102,8 @@ export interface AuditEvent {
 
 export interface ScopeDefinitionInput {
   taskDescription: string;
+  accountId?: string;
+  callerId?: string;
   maxAmount: number;
   currency: CurrencyCode;
   merchantLock: MerchantLock;

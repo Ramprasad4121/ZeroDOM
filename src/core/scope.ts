@@ -1,6 +1,8 @@
 import type { ScopeDefinitionInput, TaskScope } from "./models.js";
 
 const TASK_ID_PREFIX = "task";
+export const DEFAULT_ACCOUNT_ID = "account_local";
+export const DEFAULT_CALLER_ID = "local-agent";
 
 export class ScopeValidationError extends Error {
   constructor(message: string) {
@@ -14,7 +16,9 @@ export function defineTaskScope(input: ScopeDefinitionInput): TaskScope {
   const expiresAt = new Date(now.getTime() + input.ttlSeconds * 1000);
 
   const scope: TaskScope = {
+    account_id: input.accountId ?? DEFAULT_ACCOUNT_ID,
     task_id: input.taskId ?? `${TASK_ID_PREFIX}_${crypto.randomUUID()}`,
+    caller_id: input.callerId ?? DEFAULT_CALLER_ID,
     max_amount: input.maxAmount,
     currency: input.currency,
     merchant_lock: input.merchantLock,
@@ -32,6 +36,9 @@ export function validateTaskScope(scope: Partial<TaskScope>, now = new Date()): 
   }
   if (!scope.task_id || typeof scope.task_id !== "string") {
     throw new ScopeValidationError("TaskScope.task_id is required");
+  }
+  if (!scope.account_id || typeof scope.account_id !== "string" || !scope.account_id.trim()) {
+    throw new ScopeValidationError("TaskScope.account_id is required");
   }
   if (typeof scope.max_amount !== "number" || !Number.isInteger(scope.max_amount) || scope.max_amount <= 0) {
     throw new ScopeValidationError("TaskScope.max_amount must be a positive integer in minor currency units");
@@ -60,5 +67,8 @@ export function validateTaskScope(scope: Partial<TaskScope>, now = new Date()): 
   }
   if (typeof scope.single_use !== "boolean") {
     throw new ScopeValidationError("TaskScope.single_use must be boolean");
+  }
+  if (!scope.caller_id || typeof scope.caller_id !== "string" || !scope.caller_id.trim()) {
+    throw new ScopeValidationError("TaskScope.caller_id is required");
   }
 }

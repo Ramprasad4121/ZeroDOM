@@ -1,14 +1,19 @@
 # ZeroDOM
 
-ZeroDOM is a hackathon demo for an autonomous, financially sovereign web agent.
-It is evolving into an open-source safety layer for autonomous payments.
+ZeroDOM is open-source infrastructure for agent-safe autonomous payments. It
+mints single-task, tightly scoped sandbox virtual cards for any AI agent
+framework, then enforces amount, merchant, expiry, and single-use constraints
+outside the agent's own reasoning.
 
-There are now two tracks in the repo:
+The repo now has three clearly separated surfaces:
 
-- `x402` demo path: removes payment from browser UI and moves it into an HTTP
-  402/signature exchange.
-- scoped-card core: mints single-task sandbox virtual cards with amount,
+- scoped-card core: provisions isolated sandbox accounts, reserves each
+  account's own funded balance, and mints single-task virtual cards with amount,
   merchant, expiry, and single-use constraints enforced outside the agent.
+- integration layer: REST/JSON and MCP surfaces that any caller can use without
+  ZeroDOM-specific browsing code.
+- demo/example clients: the original `x402` browser demo and an optional
+  Playwright checkout harness.
 
 The original browser demo removes payment from browser UI and moves it into the
 HTTP exchange:
@@ -34,6 +39,8 @@ npm install
 npm test
 npm run typecheck
 npm run card-demo
+npm run audit-demo
+npm run integration-demo
 npm run checkout-harness
 npm run test-server
 npm run self-test
@@ -112,24 +119,59 @@ It mints two sandbox virtual cards:
 
 The core currently includes:
 
-- `TaskScope` validation that fails closed without amount cap, expiry, or
-  merchant lock
+- account and funding layer with salted API-key hashes, per-account balance
+  reservations, settlement/refund behavior, expiry sweeps, and suspended-account
+  rejection
+- `TaskScope` validation that fails closed without account ID, amount cap,
+  expiry, or merchant lock, and carries caller identity through the task story
 - sandbox issuer client with unique card records and no card reuse per task
 - constraint verifier for amount, merchant, expiry, and reuse decisions
-- audit log queryable by task, card, and transaction outcome
+- audit log queryable by account, task, card, transaction outcome, and caller
+- durable JSONL audit log that reconstructs task stories after process restart
 - dashboard projection and CLI formatter that redact full card number and CVC
+- browser-free, authenticated REST/MCP integration layer with `mint_card`,
+  `get_card_status`, and `list_audit_log`; every query and mutation is scoped
+  to the API key's account
 - Stripe Issuing sandbox parameter guard that rejects live keys and maps
   category locks to spending controls plus single-use lifecycle controls
-- Stripe Issuing sandbox HTTP adapter with mocked tests for card creation,
-  expanded card-detail retrieval, test-helper authorizations, and deactivation
-- scripted executor used to test hostile checkout behavior
-- Playwright checkout executor and deterministic in-memory checkout harness
+- Stripe Issuing + Connect sandbox HTTP adapter with mocked tests for
+  connected-account card creation, test-helper authorizations, and deactivation
+- optional Playwright example client and deterministic in-memory checkout harness
+
+## Integration Layer
+
+Browser automation is intentionally outside ZeroDOM core. A caller can be
+Claude, Codex, Hermes, OpenClaw, or a bespoke script; if it can call REST or
+MCP, it can mint a scoped card and do its own checkout.
+
+Run the browser-free integration demo:
+
+```bash
+npm run integration-demo
+```
+
+Start the REST server:
+
+```bash
+ZERODOM_INTEGRATION_PORT=4080 npm run integration-server
+```
+
+Start the MCP stdio server:
+
+```bash
+ZERODOM_MCP_API_KEY=zd_test_local_mcp \
+ZERODOM_MCP_CONNECT_ACCOUNT_ID=acct_local_mcp \
+ZERODOM_MCP_INITIAL_BALANCE=5000 \
+npm run mcp-server
+```
+
+See [docs/INTEGRATION_LAYER.md](docs/INTEGRATION_LAYER.md).
 
 The real checkout target site is intentionally not hardcoded. Per
 `docs/AGENTS.md`, the target site must be chosen explicitly because browser
 automation and bot-detection risk depend on that choice.
 
-Deterministic Playwright checkout harness:
+Optional deterministic Playwright example-client harness:
 
 ```bash
 npm run checkout-harness
@@ -137,16 +179,27 @@ npm run checkout-harness
 
 See [docs/PLAYWRIGHT_CHECKOUT.md](docs/PLAYWRIGHT_CHECKOUT.md).
 
+Durable audit log demo:
+
+```bash
+npm run audit-demo
+```
+
+See [docs/AUDIT_LOG.md](docs/AUDIT_LOG.md).
+
 Optional real Stripe sandbox smoke:
 
 ```bash
 STRIPE_SECRET_KEY=sk_test_... \
+STRIPE_CONNECT_ACCOUNT_ID=acct_... \
 STRIPE_ISSUING_CARDHOLDER_ID=ich_... \
 npm run stripe-sandbox-smoke
 ```
 
 See [docs/STRIPE_SANDBOX.md](docs/STRIPE_SANDBOX.md). This command refuses
-live-mode keys and prints only card IDs/last4.
+live-mode keys and prints issuer card references only. Stripe omits virtual-card
+PAN/CVC in test mode, so this command proves issuer controls rather than browser
+checkout credentials.
 
 ## Demo Narrative
 
@@ -191,9 +244,11 @@ Reference docs checked during implementation:
 
 ## Safety
 
-The demo uses public Hardhat private keys. They are disposable test keys and must
-never hold real funds. Production ZeroDOM should use a managed wallet, spend
-limits, audit logs, and facilitator or direct onchain settlement.
+The x402 demo derives deterministic, public local-only wallet material so its
+separate processes agree on a mock payer and recipient. It never reads a wallet
+key from the environment and those addresses must never hold real funds.
+Production ZeroDOM should use a managed wallet, spend limits, audit logs, and
+facilitator or direct onchain settlement.
 
 For the scoped-card core, Stripe or issuer credentials must be sandbox/test mode
 only. `.env` is gitignored, and `.env.example` contains placeholders only.

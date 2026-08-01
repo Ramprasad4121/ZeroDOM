@@ -212,10 +212,138 @@ describe("ZeroDOM account-scoped integration layer", () => {
     expect(readRpcResult<{ tools: Array<{ name: string }> }>(tools).tools.map((tool) => tool.name)).toEqual([
       "mint_card",
       "get_card_status",
+      "authorize_transaction",
       "list_audit_log"
     ]);
     expect(readRpcResult<{ isError: boolean }>(unauthenticated).isError).toBe(true);
     expect(readMcpJson(status).card.card_id).toBe(cardId);
+  });
+});
+
+describe("REST edge cases", () => {
+  it("returns 200 from the health endpoint", async () => {
+    const service = new ZeroDOMIntegrationService({ now: () => NOW });
+    const result = await handleZeroDOMRestOperation(service, {
+      method: "GET",
+      path: "/health"
+    });
+    expect(result.statusCode).toBe(200);
+    expect((result.payload as { ok: boolean }).ok).toBe(true);
+  });
+
+  it("returns 400 for malformed request bodies", async () => {
+    const service = new ZeroDOMIntegrationService({ now: () => NOW });
+    const result = await handleZeroDOMRestOperation(service, {
+      method: "POST",
+      path: "/v1/accounts",
+      body: { stripe_connect_id: "" }
+    });
+    expect(result.statusCode).toBe(400);
+  });
+
+  it("returns 404 for unknown routes", async () => {
+    const service = new ZeroDOMIntegrationService({ now: () => NOW });
+    const result = await handleZeroDOMRestOperation(service, {
+      method: "GET",
+      path: "/v1/nonexistent"
+    });
+    expect(result.statusCode).toBe(404);
+  });
+
+  it("rejects duplicate account creation", async () => {
+    const service = new ZeroDOMIntegrationService({ now: () => NOW });
+    const first = await handleZeroDOMRestOperation(service, {
+      method: "POST",
+      path: "/v1/accounts",
+      body: {
+        account_id: "account_dup",
+        stripe_connect_id: "acct_dup",
+        currency: "usd",
+        api_key: "zd_test_dup"
+      }
+    });
+    expect(first.statusCode).toBe(201);
+
+    const second = await handleZeroDOMRestOperation(service, {
+      method: "POST",
+      path: "/v1/accounts",
+      body: {
+        account_id: "account_dup",
+        stripe_connect_id: "acct_dup2",
+        currency: "usd",
+        api_key: "zd_test_dup2"
+      }
+    });
+    expect([400, 403]).toContain(second.statusCode);
+  });
+});
+
+describe("MCP authorize_transaction tool", () => {
+  it("completes a full mint-authorize-audit cycle via MCP", async () => {
+    const service = new ZeroDOMIntegrationService({ now: () => NOW });
+    const account = service.provisionSandboxAccount({
+      account_id: "account_mcp_auth",
+      stripe_connect_id: "acct_mcp_auth",
+      currency: "usd",
+      initial_balance: 5_000,
+      api_key: "zd_test_mcp_auth"
+    });
+    const auth = { api_key: account.api_key };
+    const scope = makeScope(account.account.account_id, "task_mcp_auth", "mcp-agent", 3_000);
+
+    const minted = await handleMcpJsonRpc(
+      service,
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "mint_card", arguments: { caller_id: scope.caller_id, task_scope: scope } }
+      },
+      auth
+    );
+    const cardId = readMcpJson(minted).record.card_id as string;
+
+    const authorized = await handleMcpJsonRpc(
+      service,
+      {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: {
+          name: "authorize_transaction",
+          arguments: {
+            card_id: cardId,
+            attempted_amount: 2_500,
+            attempted_merchant: "computer_software_stores",
+            attempted_merchant_category: "computer_software_stores"
+          }
+        }
+      },
+      auth
+    );
+    expect(readMcpJson(authorized).result).toBe("approved");
+
+    const auditResult = await handleMcpJsonRpc(
+      service,
+      {
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "list_audit_log", arguments: {} }
+      },
+      auth
+    );
+    const events = readMcpJson(auditResult).events;
+    expect(events.length).toBeGreaterThanOrEqual(3);
+    expect(events.some((e: { type: string }) => e.type === "transaction_attempt")).toBe(true);
+  });
+
+  it("lists authorize_transaction in tools/list", async () => {
+    const service = new ZeroDOMIntegrationService({ now: () => NOW });
+    const tools = await handleMcpJsonRpc(service, { jsonrpc: "2.0", id: 1, method: "tools/list" });
+    const toolNames = readRpcResult<{ tools: Array<{ name: string }> }>(tools).tools.map((t) => t.name);
+    expect(toolNames).toContain("authorize_transaction");
+    expect(toolNames).toEqual(["mint_card", "get_card_status", "authorize_transaction", "list_audit_log"]);
   });
 });
 
@@ -246,3 +374,4 @@ function readRpcResult<T>(response: Awaited<ReturnType<typeof handleMcpJsonRpc>>
   }
   return response.result as T;
 }
+

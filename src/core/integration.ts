@@ -258,6 +258,23 @@ export async function handleZeroDOMRestOperation(
   service: ZeroDOMIntegrationService,
   { method, path, query = {}, headers, body }: RestOperationInput
 ): Promise<RestOperationResponse> {
+  try {
+    return await dispatchRestOperation(service, { method, path, query, headers, body });
+  } catch (error) {
+    return {
+      statusCode: statusForError(error),
+      payload: {
+        error: errorName(error),
+        message: errorMessage(error)
+      }
+    };
+  }
+}
+
+async function dispatchRestOperation(
+  service: ZeroDOMIntegrationService,
+  { method, path, query = {}, headers, body }: RestOperationInput
+): Promise<RestOperationResponse> {
   if (method === "GET" && path === "/health") {
     return {
       statusCode: 200,
@@ -352,6 +369,20 @@ export const zerodomMcpTools = [
     }
   },
   {
+    name: "authorize_transaction",
+    description: "Submit a transaction authorization against a minted card for the authenticated account.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        card_id: { type: "string" },
+        attempted_amount: { type: "number" },
+        attempted_merchant: { type: "string" },
+        attempted_merchant_category: { type: "string" }
+      },
+      required: ["card_id", "attempted_amount", "attempted_merchant"]
+    }
+  },
+  {
     name: "list_audit_log",
     description: "List audit events for the authenticated account, optionally filtered by task, card, outcome, or caller.",
     inputSchema: {
@@ -408,6 +439,8 @@ function handleMcpToolCall(service: ZeroDOMIntegrationService, request: JsonRpcR
       result = service.mintCard(args as unknown as MintCardInput, auth);
     } else if (name === "get_card_status") {
       result = service.getCardStatus(args as unknown as CardStatusInput, auth);
+    } else if (name === "authorize_transaction") {
+      result = service.authorizeTransaction(args as unknown as AuthorizationInput, auth);
     } else if (name === "list_audit_log") {
       result = { events: service.listAuditLog(args as unknown as AuditLogFilters, auth) };
     } else {

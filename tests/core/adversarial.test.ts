@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  AccountAccessError,
   CardIssueError,
   SandboxCardIssuerClient,
-  defineTaskScope
+  ZeroDOMIntegrationService,
+  defineTaskScope,
+  handleZeroDOMRestOperation
 } from "../../src/core/index.js";
 
 const NOW = new Date("2026-08-01T00:00:00.000Z");
@@ -141,5 +144,110 @@ describe("adversarial issuer behavior", () => {
 
     expect(audit).not.toContain(details.number);
     expect(audit).not.toContain(details.cvc);
+  });
+});
+
+describe("adversarial account-level behavior", () => {
+  it("rejects card minting for a suspended account", () => {
+    const service = new ZeroDOMIntegrationService({ now: () => NOW });
+
+    const suspendedAccount = service.accounts.createAccount({
+      accountId: "account_suspended_2",
+      stripeConnectId: "acct_suspended_test_2",
+      currency: "usd",
+      initialBalance: 5_000,
+      apiKey: "zd_test_suspended_acct_2",
+      status: "suspended"
+    });
+
+    const scope = defineTaskScope({
+      accountId: "account_suspended_2",
+      taskDescription: "Should fail because account is suspended",
+      taskId: "task_suspended",
+      callerId: "adversarial-agent",
+      maxAmount: 2_000,
+      currency: "usd",
+      merchantLock: { type: "merchant_name", value: "Example Shop" },
+      ttlSeconds: 300,
+      now: NOW
+    });
+
+    expect(() =>
+      service.mintCard(
+        { caller_id: scope.caller_id, task_scope: scope },
+        { api_key: suspendedAccount.api_key }
+      )
+    ).toThrow(AccountAccessError);
+    expect(service.issuer.listCards("account_suspended_2")).toHaveLength(0);
+  });
+
+  it("returns proper HTTP status codes for cross-account REST access attempts", async () => {
+    const service = new ZeroDOMIntegrationService({ now: () => NOW });
+    const accountA = service.provisionSandboxAccount({
+      account_id: "account_rest_a",
+      stripe_connect_id: "acct_rest_a",
+      currency: "usd",
+      initial_balance: 5_000,
+      api_key: "zd_test_rest_a"
+    });
+    const accountB = service.provisionSandboxAccount({
+      account_id: "account_rest_b",
+      stripe_connect_id: "acct_rest_b",
+      currency: "usd",
+      initial_balance: 5_000,
+      api_key: "zd_test_rest_b"
+    });
+    const headersA = { authorization: `Bearer ${accountA.api_key}` };
+    const headersB = { authorization: `Bearer ${accountB.api_key}` };
+
+    const scopeA = defineTaskScope({
+      accountId: accountA.account.account_id,
+      taskDescription: "REST isolation test",
+      taskId: "task_rest_isolation",
+      callerId: "rest-agent-a",
+      maxAmount: 2_000,
+      currency: "usd",
+      merchantLock: { type: "merchant_name", value: "Shop" },
+      ttlSeconds: 300,
+      now: NOW
+    });
+    const mintResult = await handleZeroDOMRestOperation(service, {
+      method: "POST",
+      path: "/v1/cards",
+      headers: headersA,
+      body: { caller_id: scopeA.caller_id, task_scope: scopeA }
+    });
+    expect(mintResult.statusCode).toBe(201);
+    const cardId = (mintResult.payload as { record: { card_id: string } }).record.card_id;
+
+    const crossStatus = await handleZeroDOMRestOperation(service, {
+      method: "GET",
+      path: `/v1/cards/${cardId}/status`,
+      headers: headersB
+    });
+    expect(crossStatus.statusCode).toBe(404);
+
+    const crossFund = await handleZeroDOMRestOperation(service, {
+      method: "POST",
+      path: "/v1/accounts/account_rest_a/fund",
+      headers: headersB,
+      body: { amount: 1_000, currency: "usd" }
+    });
+    expect(crossFund.statusCode).toBe(403);
+
+    const crossAudit = await handleZeroDOMRestOperation(service, {
+      method: "GET",
+      path: "/v1/audit-log",
+      headers: headersB,
+      query: { account_id: "account_rest_a" }
+    });
+    expect(crossAudit.statusCode).toBe(403);
+
+    const noAuth = await handleZeroDOMRestOperation(service, {
+      method: "GET",
+      path: `/v1/cards/${cardId}/status`,
+      headers: {}
+    });
+    expect(noAuth.statusCode).toBe(401);
   });
 });

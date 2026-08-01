@@ -1,5 +1,47 @@
 # ZeroDOM Progress
 
+## 2026-08-01 13:04 IST
+
+Completed the readiness verification cycle. Added `authorize_transaction` as
+an MCP tool so MCP callers can complete the full mint → authorize → audit cycle.
+Wrapped `handleZeroDOMRestOperation` in try/catch so it returns proper HTTP
+status codes (400/401/403/404/500) for all error paths without requiring the
+HTTP request handler wrapper.
+
+Added 16 new tests across 4 files:
+
+- `repeated-decline.test.ts`: 5 independent over-cap, wrong-merchant, and
+  single-use reuse decline runs with determinism assertions (Build Spec
+  condition 3).
+- `e2e-deterministic.test.ts`: Full approved purchase flow, graceful over-scope
+  decline, multi-tenant isolation, and task story reconstruction from audit
+  trail alone.
+- `adversarial.test.ts`: Suspended account card mint rejection, REST-level
+  cross-account HTTP status code verification (401/403/404).
+- `integration-layer.test.ts`: Health endpoint, malformed body, unknown route,
+  duplicate account, MCP `authorize_transaction` tool end-to-end cycle, and
+  updated `tools/list` assertion.
+
+Added `npm run readiness-check` (also `zerodome readiness-check`) that verifies
+all 6 exit conditions from the Build Specification in one session. Current
+result: 17/17 automatable checks pass; condition 2 (live site) correctly
+blocked on human site selection.
+
+Updated `.env.example` with all missing environment variables.
+
+Verified:
+- `npm run typecheck`
+- `npm test` (47 tests, 10 files, all pass)
+- `npm run readiness-check` (17 passed, 0 failed, 1 blocked)
+- `npm run card-demo`
+- `npm run integration-demo`
+
+Still open:
+- Condition 2 (live run against real site in sandbox payment mode) remains
+  blocked on human site selection per `docs/AGENTS.md`.
+- Real Stripe sandbox smoke needs `sk_test_...` and `STRIPE_ISSUING_CARDHOLDER_ID`.
+- Durable production account repository replaces in-memory sandbox layer.
+
 ## 2026-08-01 12:42 IST
 
 Completed the Account & Funding Layer and made the REST/MCP boundary
@@ -25,6 +67,11 @@ Verified:
 - `npm run mcp-server` fails closed without an MCP account credential
 - `node bin/zerodome.js stripe-smoke` fails closed without all Stripe sandbox
   variables
+- `ZERODOME_PORT=4052 npm run test-server` (402 challenge, malformed/tampered,
+  replay, wrong-amount, and expiry rejection coverage)
+- `ZERODOME_PORT=4053 npm run demo:headless` (browser Flight Recorder shows
+  DOM payment actions `0` and timer freeze after the 200 unlock)
+- `npm run checkout-harness`
 
 Still open:
 - A durable production account repository, Stripe Connect onboarding callback,

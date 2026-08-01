@@ -24,6 +24,7 @@ Usage:
   zerodome stripe-smoke     Run Stripe Issuing sandbox smoke flow
   zerodome readiness-check  Verify all 6 exit conditions from Build Spec
   zerodome agent-demo       Run autonomous Playwright checkout demo
+  zerodome order-shoes-inr  Run autonomous INR shoes checkout demo
 
 Environment:
   ZERODOME_PORT=4020        Local server port for demo/start
@@ -95,6 +96,12 @@ if (command === "self-test") {
   process.exit(result.status ?? 1);
 } else if (command === "agent-demo") {
   const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/autonomous-agent-demo.ts")], {
+    stdio: "inherit",
+    env: process.env
+  });
+  process.exit(result.status ?? 1);
+} else if (command === "order-shoes-inr") {
+  const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/order-shoes-inr.ts")], {
     stdio: "inherit",
     env: process.env
   });

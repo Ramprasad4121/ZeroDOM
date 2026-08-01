@@ -23,6 +23,7 @@
     "readiness-check": "node --import tsx scripts/readiness-check.ts",
     "agent-demo": "node --import tsx scripts/autonomous-agent-demo.ts",
     "order-shoes": "node --import tsx scripts/order-shoes-demo.ts",
+    "order-shoes-inr": "node --import tsx scripts/order-shoes-inr.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

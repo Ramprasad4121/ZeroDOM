@@ -21,6 +21,7 @@
     "mcp-server": "node --import tsx scripts/mcp-server.ts",
     "stripe-sandbox-smoke": "node --import tsx scripts/stripe-sandbox-smoke.ts",
     "readiness-check": "node --import tsx scripts/readiness-check.ts",
+    "agent-demo": "node --import tsx scripts/autonomous-agent-demo.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

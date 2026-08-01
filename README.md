@@ -119,11 +119,24 @@ The core currently includes:
 - dashboard projection and CLI formatter that redact full card number and CVC
 - Stripe Issuing sandbox parameter guard that rejects live keys and maps
   category locks to spending controls plus single-use lifecycle controls
+- Stripe Issuing sandbox HTTP adapter with mocked tests for card creation,
+  expanded card-detail retrieval, test-helper authorizations, and deactivation
 - scripted executor used to test hostile checkout behavior
 
 The real checkout target site is intentionally not hardcoded. Per
 `docs/AGENTS.md`, the target site must be chosen explicitly because browser
 automation and bot-detection risk depend on that choice.
+
+Optional real Stripe sandbox smoke:
+
+```bash
+STRIPE_SECRET_KEY=sk_test_... \
+STRIPE_ISSUING_CARDHOLDER_ID=ich_... \
+npm run stripe-sandbox-smoke
+```
+
+See [docs/STRIPE_SANDBOX.md](docs/STRIPE_SANDBOX.md). This command refuses
+live-mode keys and prints only card IDs/last4.
 
 ## Demo Narrative
 

@@ -16,12 +16,15 @@ Usage:
   zerodome self-test        Alias for the server security preflight
   zerodome test-server      Run the named server security preflight
   zerodome card-demo        Run scoped virtual-card sandbox flow
+  zerodome stripe-smoke     Run Stripe Issuing sandbox smoke flow
 
 Environment:
   ZERODOME_PORT=4020        Local server port for demo/start
   PORT=4020                 Fallback port if ZERODOME_PORT is unset
   HEADLESS=1                Force headless Playwright mode
   SCREENSHOT_PATH=/tmp/z.png Save a screenshot after unlock
+  STRIPE_SECRET_KEY=sk_test_... Stripe Issuing sandbox secret for stripe-smoke
+  STRIPE_ISSUING_CARDHOLDER_ID=ich_... Stripe Issuing sandbox cardholder
 `);
   process.exit(0);
 }
@@ -32,6 +35,12 @@ if (command === "self-test") {
   await import("../scripts/test-server.js");
 } else if (command === "card-demo") {
   const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/card-sandbox-demo.ts")], {
+    stdio: "inherit",
+    env: process.env
+  });
+  process.exit(result.status ?? 1);
+} else if (command === "stripe-smoke" || command === "stripe-sandbox-smoke") {
+  const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/stripe-sandbox-smoke.ts")], {
     stdio: "inherit",
     env: process.env
   });

@@ -8,20 +8,26 @@ ZeroDOM is agent-agnostic and multi-tenant: any agent framework (such as Claude,
 
 ## 📋 Copy-Paste Prompt for Your AI Assistant
 
-If you want an AI agent to build, test, start, and integrate ZeroDOM in this repository, copy the text inside the block below and paste it directly into your AI coding assistant (Claude, Cursor, Windsurf, etc.):
+If you want an AI agent to set up, test, start, and integrate ZeroDOM into your own codebase/project, copy the text inside the block below and paste it directly into your AI coding assistant (Claude, Cursor, Windsurf, etc.):
 
 ```text
-You are an AI coding assistant. We are adopting ZeroDOM for autonomous payment uses in this codebase. Follow these steps sequentially:
-1. Compile the TypeScript codebase:
-   npm run build
-2. Run typechecks and the test suite to verify system integrity:
-   npm run typecheck && npm test
-3. Run the live Playwright checkout and verifier demo:
+You are an AI coding assistant. We want to adopt the ZeroDOM secure virtual-card checkout infrastructure for payment flows in this host codebase.
+
+Here is the ZeroDOM repository: https://github.com/Ramprasad4121/ZeroDOM.git
+
+Follow these steps sequentially to integrate it:
+1. Clone the ZeroDOM repository into a local subfolder or workspace:
+   git clone https://github.com/Ramprasad4121/ZeroDOM.git
+2. Navigate to the cloned folder, install dependencies, compile the code, and run its tests:
+   npm install && npm run build && npm test
+3. Run the live checkout verification demo to verify how Playwright is used in ZeroDOM:
    npm run live-demo
-4. Boot the Express card-issuer and checkout server:
+4. Start the ZeroDOM integration server (default port 4020):
    npm run server
-5. Inspect `examples/live-demo.ts` and `src/agent.js` to see how virtual cards are minted and charged, then integrate this scoped payment pattern into our custom payment flows.
-Report back once all steps compile and run successfully!
+5. Inspect `examples/live-demo.ts` and `src/agent.js` in the ZeroDOM repository to understand how virtual cards are minted, used in checkout forms, and verified.
+6. Adopt this pattern in our host codebase: write a client script that requests virtual cards from ZeroDOM (via `POST http://localhost:4020/request_task_card` or via the stdio MCP tools) and executes checkout flows safely with automated constraints.
+
+Report back once you have set up the local ZeroDOM server and integrated it successfully!
 ```
 
 ---

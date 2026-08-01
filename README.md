@@ -6,63 +6,22 @@ ZeroDOM is agent-agnostic and multi-tenant: any agent framework (such as Claude,
 
 ---
 
-## 🤖 AI Agent Quick Start & Adoption Guide
+## 📋 Copy-Paste Prompt for Your AI Assistant
 
-> [!IMPORTANT]
-> **AI Coding Agent Instructions (Claude, Cursor, Windsurf, Codex, etc.)**
-> If you are an AI coding assistant tasked with building, running, testing, or adopting ZeroDOM inside a parent codebase, follow this single-prompt recipe sequentially:
+If you want an AI agent to build, test, start, and integrate ZeroDOM in this repository, copy the text inside the block below and paste it directly into your AI coding assistant (Claude, Cursor, Windsurf, etc.):
 
-### 1. Build and Compile the Project
-ZeroDOM uses TypeScript. Transpile the codebase to native production-ready JavaScript outputs:
-```bash
-npm run build
-```
-*(Compiled artifacts will be output to the git-ignored `dist/` directory).*
-
-### 2. Verify System Integrity
-Verify typechecks and execute the comprehensive Vitest test suite (all 55 tests must pass):
-```bash
-npm run typecheck && npm test
-```
-
-### 3. Run the Live Demo Page & E2E Checkout
-Launch the Playwright automated browser demo to test Scenario 1 (Good Agent checkout success) and Scenario 2 (Hallucinating Agent overspend security decline):
-```bash
-npm run live-demo
-```
-
-### 4. Start the Express MCP/Merchant Server
-Boot the server to expose card requesting endpoints (`POST /request_task_card`, `GET /checkout`, `POST /charge`):
-```bash
-npm run server
-```
-
-### 5. Stdio MCP Integration Pattern
-If the host project needs to use ZeroDOM via Model Context Protocol stdio, configure the agent framework to start:
-```bash
-node dist/scripts/mcp-server.js
-```
-
-### 6. Card Request & Autonomous Checkout Adoption
-Copy and paste this pattern to adopt ZeroDOM inside any autonomous agent execution script:
-```javascript
-import { runAutonomousCheckout } from "./src/agent.js";
-
-// 1. Define Task Scope budget & locks
-const taskScope = {
-  taskDescription: "Autonomous purchase of Running Shoes",
-  max_amount: 1500, // Budget in minor units (e.g. 1500 cents = $15.00)
-  currency: "usd",
-  merchant_lock: { type: "merchant_name", value: "Stripe Hosted Checkout" },
-  ttlSeconds: 300,
-  single_use: true
-};
-
-// 2. Execute automated browser payment checkout
-// Budget: $15.00 | Item Price: $12.00 (1200 cents) -> APPROVED
-// If Item Price was $50.00 -> DECLINED_AMOUNT (Security net intercepts attempt)
-const result = await runAutonomousCheckout(taskScope, 1200);
-console.log(`Checkout Status: ${result.toUpperCase()}`); // Prints: APPROVED or DECLINED_AMOUNT
+```text
+You are an AI coding assistant. We are adopting ZeroDOM for autonomous payment uses in this codebase. Follow these steps sequentially:
+1. Compile the TypeScript codebase:
+   npm run build
+2. Run typechecks and the test suite to verify system integrity:
+   npm run typecheck && npm test
+3. Run the live Playwright checkout and verifier demo:
+   npm run live-demo
+4. Boot the Express card-issuer and checkout server:
+   npm run server
+5. Inspect `examples/live-demo.ts` and `src/agent.js` to see how virtual cards are minted and charged, then integrate this scoped payment pattern into our custom payment flows.
+Report back once all steps compile and run successfully!
 ```
 
 ---

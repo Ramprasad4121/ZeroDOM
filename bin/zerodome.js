@@ -25,6 +25,7 @@ Usage:
   zerodome readiness-check  Verify all 6 exit conditions from Build Spec
   zerodome agent-demo       Run autonomous Playwright checkout demo
   zerodome order-shoes-inr  Run autonomous INR shoes checkout demo
+  zerodome cli-dashboard    Run live terminal audit log dashboard
 
 Environment:
   ZERODOME_PORT=4020        Local server port for demo/start
@@ -102,6 +103,12 @@ if (command === "self-test") {
   process.exit(result.status ?? 1);
 } else if (command === "order-shoes-inr") {
   const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/order-shoes-inr.ts")], {
+    stdio: "inherit",
+    env: process.env
+  });
+  process.exit(result.status ?? 1);
+} else if (command === "cli-dashboard") {
+  const result = spawnSync(process.execPath, ["--import", "tsx", path.join(rootDir, "scripts/cli-dashboard.ts")], {
     stdio: "inherit",
     env: process.env
   });

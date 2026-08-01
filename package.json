@@ -22,6 +22,7 @@
     "stripe-sandbox-smoke": "node --import tsx scripts/stripe-sandbox-smoke.ts",
     "readiness-check": "node --import tsx scripts/readiness-check.ts",
     "agent-demo": "node --import tsx scripts/autonomous-agent-demo.ts",
+    "order-shoes": "node --import tsx scripts/order-shoes-demo.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

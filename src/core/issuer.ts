@@ -14,6 +14,9 @@ export interface CardIssuerClient {
   mintCard(scope: TaskScope, now?: Date): IssuedCard;
   authorize(request: TransactionRequest, now?: Date): TransactionAttempt;
   getStatusAndHistory(cardId: string): { card: CardRecord; attempts: TransactionAttempt[] };
+  getScopeForCard(cardId: string): TaskScope;
+  listCards(): CardRecord[];
+  listActiveCards(): CardRecord[];
   expireCards(now?: Date): CardRecord[];
   revokeCard(cardId: string, reason: string, now?: Date): CardRecord;
 }
@@ -108,6 +111,11 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
     };
   }
 
+  getScopeForCard(cardId: string) {
+    const card = this.#mustGetCard(cardId);
+    return structuredClone(this.#mustGetScope(card.task_id));
+  }
+
   expireCards(now = new Date()) {
     const expired: CardRecord[] = [];
     for (const card of this.#cards.values()) {
@@ -132,6 +140,10 @@ export class SandboxCardIssuerClient implements CardIssuerClient {
 
   listActiveCards() {
     return [...this.#cards.values()].filter((card) => card.status === "active").map((card) => structuredClone(card));
+  }
+
+  listCards() {
+    return [...this.#cards.values()].map((card) => structuredClone(card));
   }
 
   getCardDetails(cardId: string) {

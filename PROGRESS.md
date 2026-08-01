@@ -1,5 +1,24 @@
 # ZeroDOM Progress
 
+## 2026-08-01 11:36 IST
+
+Built the next spec-ordered local piece: Dashboard/CLI. Added a redacted dashboard projection that shows active cards, their `TaskScope`, remaining budget, authorization count, last outcome, and the audit trail without exposing full sandbox card number or CVC.
+
+Updated `npm run card-demo` to print the dashboard view, and added an exact `docs/ZeroDOM-Build Specification` pointer for handoffs that use the hyphenated filename.
+
+Verified so far in this cycle:
+- `npm run typecheck`
+- `npm test` (16 tests)
+- `npm run card-demo`
+- `node bin/zerodome.js card-demo`
+- `ZERODOME_PORT=4034 npm run test-server`
+- `ZERODOME_PORT=4035 npm run demo:headless`
+
+Still open:
+- Real checkout target site remains blocked on human selection per `docs/AGENTS.md`.
+- Real Stripe Issuing sandbox execution still needs a test account/cardholder and sandbox credentials.
+- The five repeated over-scope live runs from the 100% readiness definition are not claimable until the real sandbox checkout path exists.
+
 ## 2026-08-01 11:28 IST
 
 Built the first open-source scoped-card core cycle from `docs/ZeroDOM — Build Specification`:

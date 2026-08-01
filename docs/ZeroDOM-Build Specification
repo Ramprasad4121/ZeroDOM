@@ -1,0 +1,7 @@
+# ZeroDOM Build Specification Pointer
+
+The canonical build specification lives at:
+
+`docs/ZeroDOM — Build Specification`
+
+Use that file as the source of truth. This pointer exists because some tasks and handoffs refer to this hyphenated filename.

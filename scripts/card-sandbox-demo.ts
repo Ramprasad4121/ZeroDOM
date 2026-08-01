@@ -1,4 +1,4 @@
-import { SandboxCardIssuerClient, defineTaskScope, reconstructTaskStory } from "../src/core/index.js";
+import { SandboxCardIssuerClient, buildDashboardSnapshot, defineTaskScope, formatDashboardSnapshot } from "../src/core/index.js";
 
 const now = new Date();
 const issuer = new SandboxCardIssuerClient();
@@ -46,19 +46,14 @@ const declined = issuer.authorize(
   now
 );
 
-console.log("ZeroDOM scoped virtual-card sandbox");
-console.log("-----------------------------------");
-console.log(`approved card: ${approvedCard.record.card_id} last4=${approvedCard.card_details.last4} result=${approved.result}`);
-console.log(`declined card: ${declinedCard.record.card_id} last4=${declinedCard.card_details.last4} result=${declined.result}`);
+const snapshot = buildDashboardSnapshot({
+  issuer,
+  auditLog: issuer.auditLog,
+  now,
+  expireBeforeRead: false
+});
+
+console.log(`approved_authorization=${approved.result} card=${approvedCard.record.card_id} last4=${approvedCard.card_details.last4}`);
+console.log(`declined_authorization=${declined.result} card=${declinedCard.record.card_id} last4=${declinedCard.card_details.last4}`);
 console.log("");
-console.log("audit story for approved task:");
-for (const event of reconstructTaskStory(issuer.auditLog, purchaseScope.task_id)) {
-  const outcome = event.transaction ? ` outcome=${event.transaction.result}` : "";
-  console.log(`- ${event.timestamp} ${event.type}${outcome}`);
-}
-console.log("");
-console.log("audit story for declined task:");
-for (const event of reconstructTaskStory(issuer.auditLog, declineScope.task_id)) {
-  const outcome = event.transaction ? ` outcome=${event.transaction.result}` : "";
-  console.log(`- ${event.timestamp} ${event.type}${outcome}`);
-}
+console.log(formatDashboardSnapshot(snapshot));

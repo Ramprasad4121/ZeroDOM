@@ -31,4 +31,4 @@ Do not declare the project done until every condition in the spec's "Definition 
 If a task requires something you can't do (creating a real Stripe account, choosing between two reasonable architectures with no clear spec guidance, a site that blocks Playwright entirely), stop and write the specific blocker to `PROGRESS.md` with what you tried, rather than guessing silently and continuing.
 
 ## Definition of done
-See `zerodom-build-spec.md`, "Definition of 100% ready." All five conditions, verified together, in one session, is the only acceptable exit state.
+See `docs/ZeroDOM — Build Specification`, "Definition of 100% ready." All five conditions, verified together, in one session, is the only acceptable exit state.

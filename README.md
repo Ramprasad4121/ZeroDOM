@@ -107,6 +107,7 @@ It mints two sandbox virtual cards:
 
 - one in-scope authorization that is approved and then locked after single use
 - one over-cap authorization that is declined and written to the audit trail
+- a dashboard-style CLI view of active cards, remaining budget, and audit trail
 
 The core currently includes:
 
@@ -115,6 +116,7 @@ The core currently includes:
 - sandbox issuer client with unique card records and no card reuse per task
 - constraint verifier for amount, merchant, expiry, and reuse decisions
 - audit log queryable by task, card, and transaction outcome
+- dashboard projection and CLI formatter that redact full card number and CVC
 - Stripe Issuing sandbox parameter guard that rejects live keys and maps
   category locks to spending controls plus single-use lifecycle controls
 - scripted executor used to test hostile checkout behavior

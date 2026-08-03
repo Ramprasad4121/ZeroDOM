@@ -22,6 +22,7 @@
     "integration-server": "node --import tsx scripts/integration-server.ts",
     "mcp-server": "node --import tsx scripts/mcp-server.ts",
     "stripe-sandbox-smoke": "node --import tsx scripts/stripe-sandbox-smoke.ts",
+    "stripe-e2e-purchase": "node --import tsx scripts/stripe-e2e-purchase.ts",
     "readiness-check": "node --import tsx scripts/readiness-check.ts",
     "agent-demo": "node --import tsx scripts/autonomous-agent-demo.ts",
     "order-shoes": "node --import tsx scripts/order-shoes-demo.ts",
